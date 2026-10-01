@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nombres en boom: lo que las guaguas chilenas le deben a la tele</title>
+<link rel="stylesheet" href="style.css" />
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tone@15.0.4/build/Tone.js"></script>
+</head>
+<body>
+<header>
+  <h1>Nombres en boom: lo que las guaguas chilenas le deben a la tele</h1>
+  <p class="subtitulo">
+    Entre 1920 y 2021 hubo 203 nombres que pasaron de casi nadie a cientos de
+    inscripciones en un año. Cuando se logró identificar la causa, lo más
+    frecuente por lejos fueron las <strong>teleseries</strong>: se ven todos
+    los días durante meses y sus personajes suelen tener nombres poco comunes
+    para Chile. Cada burbuja de abajo es un boom real; el tamaño es cuánto se
+    disparó y el color, su causa. Haz clic en una para ver su historia y
+    escucharla.
+  </p>
+  <p class="advertencia">
+    Coincidir en el tiempo no prueba causa. Solo el 29% de los 203 booms
+    tiene una causa identificada (gris = sin identificar); las teleseries y
+    los artistas de Viña son más fáciles de rastrear que otras causas, así
+    que su peso real podría ser menor al que se ve aquí. Datos hasta 2021.
+  </p>
+</header>
+
+<main>
+  <section class="panel">
+    <div class="controles">
+      <div class="control-grupo">
+        <label class="titulo">Categoría (clic para filtrar)</label>
+        <div class="chips" id="chips-categoria"></div>
+      </div>
+      <div class="control-grupo">
+        <label class="titulo" for="rango-anio">Década</label>
+        <input type="range" id="rango-min" min="1920" max="2021" value="1920" step="1" />
+        <input type="range" id="rango-max" min="1920" max="2021" value="2021" step="1" />
+        <span class="rango-label" id="rango-label">1920 – 2021</span>
+      </div>
+    </div>
+
+    <div id="grafico-overview"></div>
+    <p class="leyenda-nota">
+      Posición = año del boom. Tamaño del círculo = veces sobre el promedio de
+      los 3 años previos (no el total de guaguas, para que booms chicos como
+      Kylian también se vean). Mantra de Shneiderman: esto es la vista
+      general; filtra y haz clic para los detalles.
+    </p>
+
+    <div class="sonido-controles">
+      <button id="btn-sweep" class="primario">▶ Escuchar el siglo (barrido por categoría)</button>
+      <button id="btn-sweep-stop" disabled>■ Detener</button>
+      <span class="leyenda-nota" id="estado-audio">El sonido requiere un clic (política del navegador).</span>
+    </div>
+  </section>
+
+  <section class="panel" id="detalle">
+    <div id="detalle-titulo">
+      <h2 id="detalle-nombre">—</h2>
+      <span id="detalle-chip"></span>
+    </div>
+    <p id="detalle-causa"></p>
+    <p id="detalle-meta"></p>
+    <div id="grafico-detalle"></div>
+    <div class="sonido-controles">
+      <button id="btn-curva">♪ Escuchar la curva del nombre</button>
+      <button id="btn-decir">🔊 Decir el nombre</button>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <h3>Fuentes y método</h3>
+  <p>
+    Datos crudos: paquete <em>guaguas</em> de Riva Quiroga a partir del
+    Registro Civil (CC0). Los booms se detectaron unificando variantes de
+    escritura y marcando años con al menos 40 inscripciones y 4 veces el
+    promedio de los 3 años previos. En varias teleseries extranjeras no se
+    confirmó la fecha exacta de emisión en Chile. V1 de 4 — este es un
+    estado inicial completo, no el diseño final.
+  </p>
+</footer>
+
+<script src="main.js"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+# Entrega 1: ignorar los .md de E1 (incluido CLAUDE.md)
+E1/**/*.md
+
+# Entrega 1: datos crudos y derivados (pesados; la web usa un JSON procesado)
+E1/datos/
+
+# Sistema
+.DS_Store
+__pycache__/
+*.pyc

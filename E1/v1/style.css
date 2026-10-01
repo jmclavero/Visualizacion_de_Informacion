@@ -1,0 +1,238 @@
+:root {
+  color-scheme: light;
+  --surface-1: #fcfcfb;
+  --page: #f9f9f7;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #898781;
+  --gridline: #e1e0d9;
+  --baseline: #c3c2b7;
+  --border: rgba(11, 11, 11, 0.1);
+
+  --cat-teleserie: #2a78d6;
+  --cat-musica: #eb6834;
+  --cat-otra: #1baf7a;
+  --cat-sin-identificar: #898781;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+header {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 32px 20px 12px;
+}
+
+header h1 {
+  font-size: 1.6rem;
+  margin: 0 0 6px;
+}
+
+header p.subtitulo {
+  color: var(--text-secondary);
+  margin: 0 0 4px;
+  max-width: 70ch;
+}
+
+header p.advertencia {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  max-width: 70ch;
+}
+
+main {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 0 20px 60px;
+}
+
+.panel {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.controles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+  margin-bottom: 20px;
+}
+
+.control-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.control-grupo label.titulo {
+  font-weight: 600;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  background: var(--surface-1);
+  color: var(--text-primary);
+  user-select: none;
+}
+
+.chip .punto {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.chip.inactivo {
+  opacity: 0.35;
+}
+
+.control-grupo input[type="range"] {
+  width: 260px;
+}
+
+.rango-label {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+#grafico-overview {
+  width: 100%;
+  height: 460px;
+}
+
+.leyenda-nota {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+
+.sonido-controles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 14px;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  color: var(--text-primary);
+  padding: 8px 14px;
+}
+
+button:hover {
+  background: var(--gridline);
+}
+
+button.primario {
+  background: var(--cat-teleserie);
+  color: #fff;
+  border-color: var(--cat-teleserie);
+}
+
+button.primario:hover {
+  background: #2167ba;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+#detalle {
+  display: none;
+}
+
+#detalle.visible {
+  display: block;
+}
+
+#detalle-titulo {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+#detalle-titulo h2 {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+#detalle-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  padding: 2px 10px;
+  border-radius: 999px;
+  color: #fff;
+}
+
+#detalle-causa {
+  margin: 10px 0 4px;
+  line-height: 1.5;
+}
+
+#detalle-meta {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin: 0 0 14px;
+}
+
+#detalle-meta a {
+  color: var(--text-secondary);
+}
+
+#grafico-detalle {
+  width: 100%;
+  height: 280px;
+}
+
+footer {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 0 20px 60px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+footer h3 {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin-bottom: 6px;
+}
