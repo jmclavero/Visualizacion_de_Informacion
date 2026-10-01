@@ -1,12 +1,14 @@
-// V1 — Nombres en boom: overview + filtros + panel de detalle + sonificación.
+// V1 — Nombres en boom: hilo narrativo en 3 pasos.
+//   1) grafico-intro: nombres comunes (cambio lento) vs. 2 booms de ejemplo
+//      (salto brusco) — establece la pregunta.
+//   2) grafico-overview: comparación por categoría, con filtros.
+//   3) grafico-ranking: los booms más grandes, para mostrar que las
+//      teleseries no solo son más frecuentes, sino las más grandes.
+// Un único panel de detalle (#detalle) se abre al hacer clic en cualquier
+// burbuja o barra; ahí se reproduce el único sonido de la página: un
+// timbre por categoría más una narración por voz (Web Speech API).
 // Todo corre en el navegador (sin servidor): Plotly para los gráficos,
-// Tone.js para el sonido, Web Speech API para la voz.
-//
-// El gráfico y el sonido solo comparan los booms CON causa identificada
-// (Teleserie, Música / Viña, Otra causa). Los 144 "sin identificar" no son
-// una categoría real — es ausencia de dato — así que compararlos como si
-// fueran una cuarta categoría exageraba su peso visual y sonoro. Esa
-// exclusión se explica aparte en el texto (sesgo de identificación).
+// Tone.js para el sonido.
 
 const CATEGORIAS = ["Teleserie", "Música / Viña", "Otra causa"];
 
@@ -23,7 +25,17 @@ const COLOR = {
   "Otra causa": raiz.getPropertyValue("--cat-otra").trim(),
 };
 
-let DATOS = null; // { anio_min, anio_max, booms: [...] }
+// Colores solo para los 2 ejemplos del gráfico 1 (antes de introducir las
+// categorías en la sección 2) — deliberadamente distintos de COLOR, para no
+// insinuar una categoría que todavía no se explicó.
+const COLOR_EJEMPLO_1 = "#4a3aa7"; // violeta
+const COLOR_EJEMPLO_2 = "#e34948"; // rojo
+
+// Config común para que ningún gráfico quede "pegado" en zoom (sin forma de
+// volver atrás si se toca sin querer).
+const SIN_ZOOM = { displayModeBar: false, responsive: true, scrollZoom: false };
+
+let DATOS = null; // { anio_min, anio_max, comunes: [...], booms: [...] }
 let IDENTIFICADOS = []; // DATOS.booms sin "Sin identificar"
 let rangoAnio = [1920, 2021];
 let categoriasActivas = new Set(CATEGORIAS);
@@ -46,11 +58,73 @@ fetch("data/nombres.json")
     document.querySelectorAll(".conteo-identificados").forEach((el) => {
       el.textContent = IDENTIFICADOS.length;
     });
-    document.getElementById("conteo-total").textContent = DATOS.booms.length;
     construirChips();
+    dibujarIntro();
     dibujarOverview();
+    dibujarRanking();
+    renderStats();
     actualizarEtiquetaRango();
   });
+
+// ---------- Sección 1: nombres comunes vs. booms de ejemplo ----------
+
+function dibujarIntro() {
+  const anios = [];
+  for (let a = DATOS.anio_min; a <= DATOS.anio_max; a++) anios.push(a);
+
+  const trazasComunes = DATOS.comunes.map((c, i) => {
+    const max = Math.max(...c.serie, 1);
+    return {
+      x: anios,
+      y: c.serie.map((v) => (v / max) * 100),
+      mode: "lines",
+      type: "scatter",
+      line: { color: "#c3c2b7", width: 2 },
+      name: "Nombres comunes (María, José, Juan…)",
+      legendgroup: "comunes",
+      showlegend: i === 0,
+      hovertemplate: `${c.nombre}: %{y:.0f}% de su máximo en %{x}<extra></extra>`,
+    };
+  });
+
+  const ejemplos = [
+    { nombre: "Yesenia", anio: 1974, color: COLOR_EJEMPLO_1 },
+    { nombre: "Millaray", anio: 2001, color: COLOR_EJEMPLO_2 },
+  ]
+    .map((e) => ({ ...e, boom: DATOS.booms.find((b) => b.nombre === e.nombre && b.anio === e.anio) }))
+    .filter((e) => e.boom);
+
+  const trazasBooms = ejemplos.map((e) => {
+    const max = Math.max(...e.boom.serie, 1);
+    return {
+      x: anios,
+      y: e.boom.serie.map((v) => (v / max) * 100),
+      mode: "lines",
+      type: "scatter",
+      line: { color: e.color, width: 3 },
+      name: `${e.boom.nombre} (${e.boom.anio})`,
+      hovertemplate: `${e.boom.nombre}: %{y:.0f}% de su máximo en %{x}<extra></extra>`,
+    };
+  });
+
+  const layout = {
+    margin: { t: 10, r: 10, b: 30, l: 50 },
+    paper_bgcolor: "transparent",
+    plot_bgcolor: "transparent",
+    xaxis: { gridcolor: "#e1e0d9", fixedrange: true },
+    yaxis: {
+      title: "% de su propio máximo histórico",
+      gridcolor: "#e1e0d9",
+      fixedrange: true,
+      range: [0, 108],
+    },
+    dragmode: false,
+    legend: { orientation: "h", y: -0.25 },
+    font: { family: "system-ui, sans-serif", color: "#0b0b0b" },
+  };
+
+  Plotly.newPlot("grafico-intro", [...trazasComunes, ...trazasBooms], layout, SIN_ZOOM);
+}
 
 // ---------- Chips de categoría (filtro) ----------
 
@@ -100,7 +174,7 @@ function actualizarEtiquetaRango() {
   });
 });
 
-// ---------- Vista general (overview) ----------
+// ---------- Sección 2: vista general por categoría ----------
 
 function boomsFiltrados() {
   return IDENTIFICADOS.filter(
@@ -152,35 +226,102 @@ function dibujarOverview() {
       range: [1918, 2023],
       gridcolor: "#e1e0d9",
       zeroline: false,
+      fixedrange: true,
     },
     yaxis: {
       type: "category",
       categoryarray: [...CATEGORIAS].reverse(),
       automargin: true,
       gridcolor: "#e1e0d9",
+      fixedrange: true,
     },
+    dragmode: false,
     showlegend: false,
-    // shapes[0] es un placeholder invisible: se necesita que el índice ya
-    // exista para poder moverlo con Plotly.relayout durante el barrido. Usa
-    // una coordenada dentro del rango de datos (no -1) para no afectar el
-    // autorange de otros gráficos que reutilicen este patrón.
-    shapes: [{ type: "line", x0: DATOS.anio_min, x1: DATOS.anio_min, y0: 0, y1: 0, line: { color: "transparent" } }],
     font: { family: "system-ui, sans-serif", color: "#0b0b0b" },
   };
 
-  Plotly.react("grafico-overview", trazas, layout, { displayModeBar: false, responsive: true });
+  Plotly.react("grafico-overview", trazas, layout, SIN_ZOOM);
 
   const gd = document.getElementById("grafico-overview");
   gd.removeAllListeners?.("plotly_click");
   gd.on("plotly_click", (ev) => {
     const idx = ev.points[0].customdata;
-    seleccionarBoom(idx, true);
+    seleccionarBoom(idx);
   });
 }
 
-// ---------- Panel de detalle ----------
+// ---------- Sección 3: ranking de los booms más grandes ----------
 
-function seleccionarBoom(idx, conSonido) {
+function construirLeyendaRanking() {
+  const cont = document.getElementById("leyenda-ranking");
+  CATEGORIAS.forEach((cat) => {
+    const item = document.createElement("span");
+    item.className = "chip chip-estatico";
+    item.innerHTML = `<span class="punto" style="background:${COLOR[cat]}"></span>${ETIQUETAS[cat]}`;
+    cont.appendChild(item);
+  });
+}
+
+function dibujarRanking() {
+  construirLeyendaRanking();
+  const top = IDENTIFICADOS.slice()
+    .sort((a, b) => b.veces - a.veces)
+    .slice(0, 12);
+  // Plotly dibuja barras horizontales de abajo hacia arriba en el orden del
+  // arreglo; se invierte para que el boom más grande quede arriba.
+  const ordenado = top.slice().reverse();
+
+  const traza = {
+    x: ordenado.map((b) => b.veces),
+    y: ordenado.map((b) => `${b.nombre} (${b.anio})`),
+    customdata: ordenado.map((b) => DATOS.booms.indexOf(b)),
+    type: "bar",
+    orientation: "h",
+    marker: { color: ordenado.map((b) => COLOR[b.categoria_viz]) },
+    text: ordenado.map((b) => `${b.veces.toFixed(0)}x`),
+    textposition: "outside",
+    hovertemplate: "%{y}: %{x:.1f}x sobre lo previo<extra></extra>",
+  };
+
+  const layout = {
+    margin: { t: 10, r: 40, b: 40, l: 170 },
+    paper_bgcolor: "transparent",
+    plot_bgcolor: "transparent",
+    xaxis: { title: "Veces sobre el promedio previo", gridcolor: "#e1e0d9", fixedrange: true },
+    yaxis: { gridcolor: "#e1e0d9", fixedrange: true },
+    dragmode: false,
+    showlegend: false,
+    font: { family: "system-ui, sans-serif", color: "#0b0b0b" },
+  };
+
+  Plotly.newPlot("grafico-ranking", [traza], layout, SIN_ZOOM);
+
+  const gd = document.getElementById("grafico-ranking");
+  gd.on("plotly_click", (ev) => {
+    const idx = ev.points[0].customdata;
+    seleccionarBoom(idx);
+    document.getElementById("detalle").scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+}
+
+function renderStats() {
+  const teleseries = IDENTIFICADOS.filter((b) => b.categoria_viz === "Teleserie");
+  const pctConteo = Math.round((teleseries.length / IDENTIFICADOS.length) * 100);
+  const extraTotal = IDENTIFICADOS.reduce((acc, b) => acc + b.extra, 0);
+  const extraTeleserie = teleseries.reduce((acc, b) => acc + b.extra, 0);
+  const pctExtra = Math.round((extraTeleserie / extraTotal) * 100);
+  const maximo = IDENTIFICADOS.slice().sort((a, b) => b.veces - a.veces)[0];
+
+  document.getElementById("stat-conteo").textContent =
+    `${teleseries.length} de ${IDENTIFICADOS.length} (${pctConteo}%)`;
+  document.getElementById("stat-extra").textContent = `${pctExtra}%`;
+  document.getElementById("stat-maximo").textContent =
+    `${maximo.nombre}, ${maximo.veces.toFixed(0)}x (${maximo.anio})`;
+}
+
+// ---------- Panel de detalle (compartido por los gráficos 2 y 3) ----------
+
+function seleccionarBoom(idx) {
   boomSeleccionado = DATOS.booms[idx];
   const b = boomSeleccionado;
 
@@ -200,12 +341,10 @@ function seleccionarBoom(idx, conSonido) {
 
   dibujarDetalle(b);
 
-  if (conSonido) {
-    asegurarAudio().then(() => {
-      reproducirEarcon(b);
-      decirBoom(b);
-    });
-  }
+  asegurarAudio().then(() => {
+    reproducirEarcon(b);
+    decirBoom(b);
+  });
 }
 
 function dibujarDetalle(b) {
@@ -227,11 +366,9 @@ function dibujarDetalle(b) {
     margin: { t: 10, r: 10, b: 30, l: 50 },
     paper_bgcolor: "transparent",
     plot_bgcolor: "transparent",
-    // Rango fijo (no autorange): un shape invisible con x fuera de 1920-2021
-    // (usado para la línea de progreso de "escuchar la curva") hace que
-    // Plotly estire el autorange para incluirlo, aplastando la curva real.
-    xaxis: { range: [DATOS.anio_min - 2, DATOS.anio_max + 2], gridcolor: "#e1e0d9" },
-    yaxis: { title: "Inscripciones", rangemode: "tozero", gridcolor: "#e1e0d9" },
+    xaxis: { range: [DATOS.anio_min - 2, DATOS.anio_max + 2], gridcolor: "#e1e0d9", fixedrange: true },
+    yaxis: { title: "Inscripciones", rangemode: "tozero", gridcolor: "#e1e0d9", fixedrange: true },
+    dragmode: false,
     shapes: [
       {
         type: "line",
@@ -241,9 +378,6 @@ function dibujarDetalle(b) {
         y1: Math.max(...b.serie) * 1.05,
         line: { color: "#0b0b0b", width: 1, dash: "dot" },
       },
-      // shapes[1] es un placeholder invisible para la linea de progreso de
-      // "escuchar la curva" (ver animarLineaDeProgreso).
-      { type: "line", x0: b.anio, x1: b.anio, y0: 0, y1: 0, line: { color: "transparent" } },
     ],
     annotations: [
       {
@@ -258,21 +392,14 @@ function dibujarDetalle(b) {
     font: { family: "system-ui, sans-serif", color: "#0b0b0b" },
   };
 
-  Plotly.react("grafico-detalle", [traza], layout, { displayModeBar: false, responsive: true });
+  Plotly.react("grafico-detalle", [traza], layout, SIN_ZOOM);
 }
 
 // ---------- Sonificación (Tone.js + Web Speech API) ----------
 //
-// Estrategias de la cápsula técnica T4 que se usan aquí:
-//   - Tonos sintetizados (Tone.js): cada categoría tiene un timbre fijo, y
-//     la altura del tono sube con la magnitud del boom ("veces"). Las notas
-//     se ajustan a una escala pentatónica para que la secuencia suene
-//     musical y no como ruido aleatorio.
-//   - Audificación (cápsula 27): "escuchar la curva" traduce directamente
-//     la serie de inscripciones de un nombre en un tono que sube y baja,
-//     sincronizado con una línea que recorre el gráfico.
-//   - Voz (Web Speech API): no solo dice el nombre, narra el dato (de
-//     cuánto a cuánto, en qué año) y la causa, como pide la estrategia 4.
+// Único sonido de la página: al hacer clic en un boom (burbuja o barra),
+// suena un tono (timbre fijo por categoría, altura según la magnitud del
+// boom) y una voz narra el dato — estrategias de la cápsula técnica T4.
 
 // Escala pentatónica mayor en semitonos, dos octavas y media — cualquier
 // nota de esta lista suena "bien" combinada con las demás, a diferencia de
@@ -287,14 +414,12 @@ function notaDesdeT(t) {
 }
 
 function tDesdeVeces(veces) {
-  // "veces sobre lo previo" va de 4 (umbral de boom) a ~60 (Millaray); log
+  // "veces sobre lo previo" va de 4 (umbral de boom) a ~187 (Yesenia); log
   // porque la mayoría de los booms son chicos y unos pocos son enormes.
-  return Math.log(veces / 4) / Math.log(60 / 4);
+  return Math.log(veces / 4) / Math.log(187 / 4);
 }
 
 let voces = null;
-let curvaSynth = null;
-let tickSynth = null;
 
 function asegurarAudio() {
   return Tone.start().then(() => {
@@ -316,24 +441,14 @@ function asegurarAudio() {
         // Otra causa: timbre tipo campana/electrónico, claramente distinto.
         "Otra causa": new Tone.FMSynth({ volume: -10 }).toDestination(),
       };
-      curvaSynth = new Tone.Synth({
-        oscillator: { type: "sine" },
-        envelope: { attack: 0.05, decay: 0.1, sustain: 0.8, release: 0.3 },
-        portamento: 0.05,
-        volume: -10,
-      }).toDestination();
-      tickSynth = new Tone.MembraneSynth({ volume: -22, envelope: { attack: 0.001, decay: 0.08, sustain: 0 } }).toDestination();
-      document.getElementById("estado-audio").textContent = "Audio listo.";
     }
   });
 }
 
 // Tone.js exige que cada ataque en un mismo instrumento tenga un horario
-// estrictamente mayor al anterior. Dos booms de la misma categoría pueden
-// caer muy cerca en el tiempo (durante el barrido del siglo), así que se
-// guarda el último horario usado por categoría y se fuerza un mínimo de
-// separación en vez de confiar en que cada setTimeout dispare en un
-// instante distinto.
+// estrictamente mayor al anterior. Si se hace doble clic rápido en dos
+// booms de la misma categoría, el segundo podría caer en el mismo instante
+// que el primero, así que se fuerza un mínimo de separación.
 const ultimoInicioPorCategoria = {};
 
 function reproducirEarcon(b) {
@@ -354,118 +469,4 @@ function decirBoom(b) {
   u.lang = "es-CL";
   u.rate = 1.05;
   speechSynthesis.speak(u);
-}
-
-document.getElementById("btn-decir").addEventListener("click", () => {
-  if (boomSeleccionado) decirBoom(boomSeleccionado);
-});
-
-document.getElementById("btn-curva").addEventListener("click", () => {
-  if (!boomSeleccionado) return;
-  asegurarAudio().then(() => reproducirCurva(boomSeleccionado));
-});
-
-// Audificación: desliza el tono siguiendo la curva del nombre, con una
-// línea que recorre el gráfico de detalle al mismo tiempo (cápsula 13:
-// mismo dato por dos canales a la vez).
-let finCurvaAnterior = 0;
-
-function reproducirCurva(b) {
-  const max = Math.max(...b.serie, 1);
-  const duracionTotal = 4.5; // segundos
-  const pasoSeg = duracionTotal / b.serie.length;
-  // Si se hace clic de nuevo mientras suena la curva anterior, espera a que
-  // termine en vez de pisarla (misma razón que en reproducirEarcon).
-  const inicio = Math.max(Tone.now() + 0.05, finCurvaAnterior);
-  finCurvaAnterior = inicio + duracionTotal + 0.1;
-
-  curvaSynth.triggerAttack(notaDesdeT(b.serie[0] / max), inicio);
-  b.serie.forEach((valor, i) => {
-    curvaSynth.frequency.rampTo(notaDesdeT(valor / max), pasoSeg * 0.9, inicio + i * pasoSeg);
-  });
-  curvaSynth.triggerRelease(inicio + duracionTotal);
-
-  animarLineaDeProgreso("grafico-detalle", DATOS.anio_min, DATOS.anio_max, duracionTotal * 1000, 1);
-}
-
-// Mueve una línea vertical sobre un gráfico Plotly durante `duracionMs`,
-// para que se vea en qué momento de la curva/línea de tiempo va el sonido.
-// Reemplaza el arreglo "shapes" completo en cada cuadro (en vez de apuntar a
-// "shapes[i]" con Plotly.relayout, que en la práctica va acumulando formas
-// repetidas en vez de reemplazar la que ya existía).
-function animarLineaDeProgreso(idGrafico, anioInicio, anioFin, duracionMs, indiceShape) {
-  const gd = document.getElementById(idGrafico);
-  const t0 = performance.now();
-  const shapesBase = gd.layout.shapes.map((s) => ({ ...s }));
-
-  function lineaEn(anio) {
-    return {
-      type: "line",
-      x0: anio,
-      x1: anio,
-      yref: "paper",
-      y0: 0,
-      y1: 1,
-      line: { color: "#52514e", width: 2 },
-    };
-  }
-
-  function paso(ahora) {
-    const t = Math.min(1, (ahora - t0) / duracionMs);
-    const anio = anioInicio + t * (anioFin - anioInicio);
-    const shapes = shapesBase.map((s, i) => (i === indiceShape ? lineaEn(anio) : s));
-    Plotly.relayout(gd, { shapes });
-    if (t < 1) requestAnimationFrame(paso);
-    else Plotly.relayout(gd, { shapes: shapesBase });
-  }
-  requestAnimationFrame(paso);
-}
-
-// ---------- Barrido del siglo (overview sonora) ----------
-
-let timeoutsSweep = [];
-let sweepActivo = false;
-
-document.getElementById("btn-sweep").addEventListener("click", () => {
-  if (sweepActivo) return;
-  asegurarAudio().then(iniciarSweep);
-});
-
-document.getElementById("btn-sweep-stop").addEventListener("click", detenerSweep);
-
-function iniciarSweep() {
-  const puntos = boomsFiltrados().slice().sort((a, b) => a.anio - b.anio);
-  if (puntos.length === 0) return;
-
-  sweepActivo = true;
-  document.getElementById("btn-sweep").disabled = true;
-  document.getElementById("btn-sweep-stop").disabled = false;
-  document.getElementById("estado-audio").textContent = "Reproduciendo el siglo…";
-
-  const duracionTotalMs = 16000;
-  const span = rangoAnio[1] - rangoAnio[0] || 1;
-
-  // Un "tic" suave cada década, para que el oído tenga una referencia de
-  // tiempo mientras pasan los booms (como el segundero de un reloj).
-  for (let anio = Math.ceil(rangoAnio[0] / 10) * 10; anio <= rangoAnio[1]; anio += 10) {
-    const t = ((anio - rangoAnio[0]) / span) * duracionTotalMs;
-    timeoutsSweep.push(setTimeout(() => tickSynth.triggerAttackRelease("C1", 0.05), t));
-  }
-
-  puntos.forEach((b) => {
-    const t = ((b.anio - rangoAnio[0]) / span) * duracionTotalMs;
-    timeoutsSweep.push(setTimeout(() => reproducirEarcon(b), t));
-  });
-
-  animarLineaDeProgreso("grafico-overview", rangoAnio[0], rangoAnio[1], duracionTotalMs, 0);
-  timeoutsSweep.push(setTimeout(detenerSweep, duracionTotalMs + 400));
-}
-
-function detenerSweep() {
-  timeoutsSweep.forEach((id) => clearTimeout(id));
-  timeoutsSweep = [];
-  sweepActivo = false;
-  document.getElementById("btn-sweep").disabled = false;
-  document.getElementById("btn-sweep-stop").disabled = true;
-  document.getElementById("estado-audio").textContent = "Detenido.";
 }

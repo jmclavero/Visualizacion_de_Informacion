@@ -43,12 +43,6 @@ header p.subtitulo {
   max-width: 70ch;
 }
 
-header p.advertencia {
-  color: var(--text-muted);
-  font-size: 0.85rem;
-  max-width: 70ch;
-}
-
 main {
   max-width: 980px;
   margin: 0 auto;
@@ -61,6 +55,65 @@ main {
   border-radius: 10px;
   padding: 16px;
   margin-bottom: 20px;
+}
+
+.seccion p {
+  max-width: 70ch;
+  line-height: 1.6;
+}
+
+.numero-seccion {
+  font-size: 1.15rem;
+  margin: 0 0 12px;
+}
+
+.subtitulo-seccion {
+  color: var(--text-secondary);
+}
+
+.advertencia {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  max-width: 70ch;
+  margin-top: 10px;
+}
+
+.stat-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 18px 0;
+}
+
+.stat-tile {
+  flex: 1 1 200px;
+  background: var(--page);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.stat-valor {
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--cat-teleserie);
+  line-height: 1.1;
+}
+
+.stat-label {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  margin-top: 4px;
+}
+
+#grafico-intro {
+  width: 100%;
+  height: 300px;
+}
+
+#grafico-ranking {
+  width: 100%;
+  height: 420px;
 }
 
 .controles {
@@ -114,6 +167,10 @@ main {
   opacity: 0.35;
 }
 
+.chip-estatico {
+  cursor: default;
+}
+
 .control-grupo input[type="range"] {
   width: 260px;
 }
@@ -133,43 +190,6 @@ main {
   font-size: 0.8rem;
   color: var(--text-muted);
   margin-top: 8px;
-}
-
-.sonido-controles {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-  margin-top: 14px;
-}
-
-button {
-  font: inherit;
-  cursor: pointer;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--surface-1);
-  color: var(--text-primary);
-  padding: 8px 14px;
-}
-
-button:hover {
-  background: var(--gridline);
-}
-
-button.primario {
-  background: var(--cat-teleserie);
-  color: #fff;
-  border-color: var(--cat-teleserie);
-}
-
-button.primario:hover {
-  background: #2167ba;
-}
-
-button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 
 #detalle {

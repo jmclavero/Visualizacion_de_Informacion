@@ -15,7 +15,12 @@ Flujo CSV -> JSON (capsula tecnica T1):
      (ver rationale en V1 dentro de CLAUDE.md / notas de version): con 9
      colores compitiendo se pierde jerarquia visual y el mensaje (las
      teleseries dominan) se diluye.
-  5. Escribe datos/nombres.json liviano (<500 KB) para GitHub Pages.
+  5. Calcula la serie de los 5 nombres mas inscritos de la historia (los
+     "comunes"), para contrastar su forma contra la de un boom en la
+     primera seccion de la pagina (evidencia de que son fenomenos distintos:
+     un nombre comun nunca salta mas de ~2.7x de un anio a otro en el
+     siglo completo, un boom por definicion salta al menos 4x).
+  6. Escribe datos/nombres.json liviano (<500 KB) para GitHub Pages.
 
 Uso: python3 scripts/preparar_datos.py
 """
@@ -34,6 +39,7 @@ OUT_JSON = BASE / "v1" / "data" / "nombres.json"
 
 ANIO_MIN = 1920
 ANIO_MAX = 2021
+CANTIDAD_NOMBRES_COMUNES = 5
 
 # Categorias minoritarias que se agrupan en "Otra causa" solo para la vista
 # general (el detalle de cada boom sigue mostrando su categoria original).
@@ -135,10 +141,21 @@ def main() -> None:
             }
         )
 
+    # Nombres comunes de referencia: los mas inscritos en todo el siglo,
+    # sin unificar variantes (nombres como "María" o "José" no tienen el
+    # problema de grafias raras que sí tienen los booms).
+    total_por_nombre = crudo.groupby("nombre")["n"].sum().sort_values(ascending=False)
+    comunes = []
+    for nombre in total_por_nombre.head(CANTIDAD_NOMBRES_COMUNES).index:
+        serie_por_anio = crudo[crudo["nombre"] == nombre].groupby("anio")["n"].sum()
+        serie = [int(serie_por_anio.get(a, 0)) for a in range(ANIO_MIN, ANIO_MAX + 1)]
+        comunes.append({"nombre": nombre, "serie": serie})
+
     salida = {
         "anio_min": ANIO_MIN,
         "anio_max": ANIO_MAX,
         "generado_de": "picos_nombres_clasificados.csv + nombres_1920_2021.csv",
+        "comunes": comunes,
         "booms": booms,
     }
 
