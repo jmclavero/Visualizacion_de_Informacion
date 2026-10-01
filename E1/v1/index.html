@@ -13,18 +13,22 @@
   <h1>Nombres en boom: lo que las guaguas chilenas le deben a la tele</h1>
   <p class="subtitulo">
     Entre 1920 y 2021 hubo 203 nombres que pasaron de casi nadie a cientos de
-    inscripciones en un año. Cuando se logró identificar la causa, lo más
-    frecuente por lejos fueron las <strong>teleseries</strong>: se ven todos
-    los días durante meses y sus personajes suelen tener nombres poco comunes
-    para Chile. Cada burbuja de abajo es un boom real; el tamaño es cuánto se
-    disparó y el color, su causa. Haz clic en una para ver su historia y
+    inscripciones en un año. De esos, a <span class="conteo-identificados">—</span>
+    se les pudo identificar una causa real, y la más frecuente por lejos
+    fueron las <strong>teleseries</strong>: se ven todos los días durante
+    meses y sus personajes suelen tener nombres poco comunes para Chile. Cada
+    burbuja de abajo es uno de esos booms identificados; el tamaño es cuánto
+    se disparó y el color, su causa. Haz clic en una para ver su historia y
     escucharla.
   </p>
   <p class="advertencia">
-    Coincidir en el tiempo no prueba causa. Solo el 29% de los 203 booms
-    tiene una causa identificada (gris = sin identificar); las teleseries y
-    los artistas de Viña son más fáciles de rastrear que otras causas, así
-    que su peso real podría ser menor al que se ve aquí. Datos hasta 2021.
+    Este gráfico compara solo los <span class="conteo-identificados">—</span>
+    booms con causa identificada — el 29% de los <span id="conteo-total">—</span>
+    totales. Los otros no tienen una causa clara y no son una categoría real,
+    así que se dejaron fuera en vez de mostrarlos como una cuarta opción.
+    Coincidir en el tiempo tampoco prueba causa, y las teleseries y los
+    artistas de Viña son más fáciles de rastrear que otras causas, así que su
+    peso real podría ser menor al que se ve aquí. Datos hasta 2021.
   </p>
 </header>
 
@@ -51,6 +55,12 @@
       general; filtra y haz clic para los detalles.
     </p>
 
+    <p class="leyenda-nota">
+      <strong>Qué escuchas:</strong> cada categoría tiene un instrumento fijo
+      (cuerdas = teleserie, cuerdas pulsadas = música/Viña, campana = otra
+      causa); dentro de cada instrumento, un tono más agudo = un boom más
+      grande. Un "tic" grave marca cada década, como un reloj.
+    </p>
     <div class="sonido-controles">
       <button id="btn-sweep" class="primario">▶ Escuchar el siglo (barrido por categoría)</button>
       <button id="btn-sweep-stop" disabled>■ Detener</button>
@@ -68,7 +78,7 @@
     <div id="grafico-detalle"></div>
     <div class="sonido-controles">
       <button id="btn-curva">♪ Escuchar la curva del nombre</button>
-      <button id="btn-decir">🔊 Decir el nombre</button>
+      <button id="btn-decir">🔊 Escuchar el contexto (voz)</button>
     </div>
   </section>
 </main>
