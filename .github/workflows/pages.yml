@@ -29,16 +29,6 @@ jobs:
       - name: Configurar Pages
         uses: actions/configure-pages@v5
       - name: Subir E1/ como artefacto de Pages
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Configurar Pages
-        uses: actions/configure-pages@v5
-      - name: Subir E1/ como artefacto de Pages
         uses: actions/upload-pages-artifact@v3
         with:
           path: "E1"
