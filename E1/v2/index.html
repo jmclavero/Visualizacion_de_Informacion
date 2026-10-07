@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Nombres en boom: lo que las guaguas chilenas le deben a la tele</title>
+<title>La influencia de la televisión en los nombres de los chilenos</title>
 <link rel="stylesheet" href="style.css" />
 <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tone@15.0.4/build/Tone.js"></script>
@@ -12,20 +12,23 @@
 <body class="intro-activa">
 <div id="portada">
   <h1 class="portada-titulo">
-    La televisión dictó cómo se llamaron los chilenos:
-    Las teleseries generaron los mayores 'booms' históricos
+    La influencia de la televisión en los nombres de los chilenos
   </h1>
   <div class="portada-flecha" aria-hidden="true">↓</div>
 </div>
 
 <div id="overview">
+  <button type="button" class="slide-atras" id="bebes-atras">
+    <span aria-hidden="true">←</span> Atrás
+  </button>
   <div class="overview-contenido">
     <h2 class="overview-titulo">
       ¿Cómo la televisión ha influido en los nombres de los bebés chilenos?
     </h2>
     <p class="overview-subtitulo">
-      Cada figura es 1 de cada 100 bebés cuyos nombres hicieron "boom" entre
-      1920 y 2021. Los celestes se explican por la televisión; el resto, no.
+      Cada figura es 1 de cada 100 bebés cuyos nombres tuvieron un alza
+      significativa entre 1920 y 2021. Los celestes se explican por la
+      televisión; el resto, no.
     </p>
     <div class="bebes-grid" id="bebes-grid" aria-hidden="true"></div>
     <div class="bebes-leyenda">
@@ -41,7 +44,8 @@
       </span>
     </div>
     <p class="bebes-nota">
-      De los 203 booms detectados entre 1920 y 2021, 144 no tienen causa identificada.
+      De las 203 alzas significativas detectadas entre 1920 y 2021, 144 no
+      tienen causa identificada.
     </p>
   </div>
   <div class="portada-flecha" aria-hidden="true">↓</div>
@@ -50,158 +54,35 @@
 <div id="swarm">
   <div id="swarm-zoom">
     <div class="swarm-contenido">
-      <h2 class="swarm-titulo">2 · Cuando se sabe qué pasó ese año, ¿qué se repite más?</h2>
+      <h2 class="swarm-titulo">Alzas categorizadas y su impacto</h2>
       <p class="swarm-subtitulo">
-        Cada punto es uno de los 203 booms detectados entre 1920 y 2021, según
-        cuánto se disparó (veces sobre el promedio de los 3 años previos) y su
-        causa. Haz clic en un punto para ver su historia.
+        Cada punto es una de las 203 alzas significativas detectadas entre 1920
+        y 2021, según cuánto se disparó (veces sobre el promedio de los 3 años
+        previos) y su causa. Haz clic en un punto para ver su historia.
       </p>
+      <p class="swarm-leyenda-ayuda">Haz clic en las categorías para filtrar las alzas.</p>
       <div class="swarm-leyenda" id="swarm-leyenda"></div>
       <div id="grafico-swarm"></div>
     </div>
   </div>
-  <div class="swarm-detalle" id="swarm-detalle" hidden></div>
-  <button type="button" class="swarm-volver" id="swarm-volver" hidden>
-    Volver
+  <div class="swarm-tooltip" id="swarm-tooltip" hidden></div>
+  <aside class="swarm-detalle" id="swarm-detalle" hidden>
+    <button type="button" class="swarm-detalle-cerrar" id="swarm-detalle-cerrar" aria-label="Cerrar detalle">×</button>
+    <div class="detalle-titulo">
+      <h3 id="swarm-detalle-nombre">—</h3>
+      <span id="swarm-detalle-chip"></span>
+    </div>
+    <p id="swarm-detalle-causa"></p>
+    <p id="swarm-detalle-meta"></p>
+    <div id="swarm-grafico-detalle"></div>
+  </aside>
+  <button type="button" class="slide-atras" id="swarm-atras">
+    <span aria-hidden="true">←</span> Atrás
   </button>
-  <button type="button" class="swarm-continuar" id="swarm-continuar">
-    Ver visualización <span aria-hidden="true">↓</span>
+  <button type="button" class="swarm-volver" id="swarm-volver" hidden>
+    <span aria-hidden="true">←</span> Volver
   </button>
 </div>
-
-<header>
-  <h1>Nombres en boom: lo que las guaguas chilenas le deben a la tele</h1>
-  <p class="subtitulo">
-    ¿Qué hace que un nombre pase de casi nadie a cientos de inscripciones
-    en un solo año, cuando la gran mayoría de los nombres apenas cambia de
-    uno a otro?
-  </p>
-</header>
-
-<main>
-
-  <section class="panel seccion">
-    <h2 class="numero-seccion">1 · La mayoría de los nombres cambia lento. Algunos, de un día para otro.</h2>
-    <p>
-      Nombres como María, José o Juan llevan un siglo entre los más
-      inscritos de Chile. Suben y bajan con las modas de cada generación,
-      pero de un año a otro casi nunca cambian más de 2 o 3 veces, ni
-      siquiera en su peor o mejor año. Un <strong>boom</strong> es distinto:
-      por definición, salta al menos 4 veces su propio promedio en un solo
-      año. Yesenia pasó de 2 a 373 inscripciones en 1974; Millaray, de ~130
-      a 1.321 en 2001. Esa clase de salto casi siempre coincide con algo que
-      pasó ese mismo año.
-    </p>
-    <div id="grafico-intro"></div>
-    <p class="leyenda-nota">
-      Cada línea está en su propia escala (% de su propio máximo histórico),
-      porque María (hasta 21 mil guaguas al año) y Yesenia (hasta 373) no se
-      pueden comparar en números absolutos sin que una tape a la otra
-      (cáp. 15: relativo en vez de absoluto). Lo que importa aquí es la
-      <em>forma</em> de la curva, no su altura.
-    </p>
-  </section>
-
-  <section class="panel seccion">
-    <h2 class="numero-seccion">2 · Cuando se sabe qué pasó ese año, ¿qué se repite más?</h2>
-    <p class="subtitulo-seccion">
-      De los 203 booms detectados entre 1920 y 2021, a <span class="conteo-identificados">—</span>
-      se les pudo identificar una causa real y verificable. Cada burbuja de
-      abajo es uno de esos <span class="conteo-identificados">—</span> booms;
-      el tamaño es cuánto se disparó y el color, su causa. Haz clic en una
-      para ver su historia.
-    </p>
-    <div class="controles">
-      <div class="control-grupo">
-        <label class="titulo">Categoría (clic para filtrar)</label>
-        <div class="chips" id="chips-categoria"></div>
-      </div>
-      <div class="control-grupo">
-        <label class="titulo" for="rango-anio">Década</label>
-        <input type="range" id="rango-min" min="1920" max="2021" value="1920" step="1" />
-        <input type="range" id="rango-max" min="1920" max="2021" value="2021" step="1" />
-        <span class="rango-label" id="rango-label">1920 – 2021</span>
-      </div>
-    </div>
-
-    <div id="grafico-overview"></div>
-    <p class="leyenda-nota">
-      Posición = año del boom. Tamaño del círculo = veces sobre el promedio
-      de los 3 años previos (no el total de guaguas, para que booms chicos
-      como Kylian también se vean). Mantra de Shneiderman: esto es la vista
-      general; filtra y haz clic para los detalles. Al hacer clic se narra
-      el dato en voz alta.
-    </p>
-    <p class="advertencia">
-      Los otros 144 booms no tienen una causa clara y no son una categoría
-      real, así que se dejaron fuera en vez de mostrarlos como una cuarta
-      opción. Coincidir en el tiempo tampoco prueba causa, y las teleseries
-      y los artistas de Viña son más fáciles de rastrear que otras causas,
-      así que su peso real podría ser menor al que se ve aquí. Datos hasta 2021.
-    </p>
-  </section>
-
-  <section class="panel" id="detalle">
-    <div id="detalle-titulo">
-      <h2 id="detalle-nombre">—</h2>
-      <span id="detalle-chip"></span>
-    </div>
-    <p id="detalle-causa"></p>
-    <p id="detalle-meta"></p>
-    <div id="grafico-detalle"></div>
-  </section>
-
-  <section class="panel seccion">
-    <h2 class="numero-seccion">3 · Por qué las teleseries pesan más que las demás causas</h2>
-    <p>
-      Una teleserie se transmite todos los días durante meses: el público
-      se encariña con sus personajes, que suelen tener nombres poco comunes
-      o directamente extravagantes para Chile. Eso genera booms más
-      frecuentes <strong>y</strong> más grandes que los de música, cine,
-      política o deporte.
-    </p>
-
-    <div class="stat-tiles">
-      <div class="stat-tile">
-        <div class="stat-valor" id="stat-conteo">—</div>
-        <div class="stat-label">de los booms identificados son teleseries</div>
-      </div>
-      <div class="stat-tile">
-        <div class="stat-valor" id="stat-extra">—</div>
-        <div class="stat-label">de todas las guaguas extra identificadas vienen de teleseries</div>
-      </div>
-      <div class="stat-tile">
-        <div class="stat-valor" id="stat-maximo">—</div>
-        <div class="stat-label">el boom más grande de todos, y es una teleserie</div>
-      </div>
-    </div>
-
-    <p>
-      Y no es solo que haya más booms de teleserie: cuando hay uno, tiende
-      a estar entre los más grandes de cualquier categoría.
-    </p>
-    <div class="chips" id="leyenda-ranking"></div>
-    <div id="grafico-ranking"></div>
-    <p class="leyenda-nota">
-      Los 12 booms más grandes (en veces sobre lo previo) entre los 59 con
-      causa identificada, ordenados de mayor a menor (cáp. 20: ordenar por
-      valor). Haz clic en una barra para ver su historia.
-    </p>
-  </section>
-
-</main>
-
-<footer>
-  <h3>Fuentes y método</h3>
-  <p>
-    Datos crudos: paquete <em>guaguas</em> de Riva Quiroga a partir del
-    Registro Civil (CC0). Los booms se detectaron unificando variantes de
-    escritura y marcando años con al menos 40 inscripciones y 4 veces el
-    promedio de los 3 años previos. En varias teleseries extranjeras no se
-    confirmó la fecha exacta de emisión en Chile. V1 de 4 — este es un
-    estado inicial completo, no el diseño final.
-  </p>
-</footer>
 
 <script src="main.js"></script>
 </body>

@@ -1,45 +1,14 @@
-// V1 — Nombres en boom: hilo narrativo en 3 pasos.
-//   1) grafico-intro: nombres comunes (cambio lento) vs. 2 booms de ejemplo
-//      (salto brusco) — establece la pregunta.
-//   2) grafico-overview: comparación por categoría, con filtros.
-//   3) grafico-ranking: los booms más grandes, para mostrar que las
-//      teleseries no solo son más frecuentes, sino las más grandes.
-// Un único panel de detalle (#detalle) se abre al hacer clic en cualquier
-// burbuja o barra; ahí se reproduce el único sonido de la página: un
-// timbre por categoría más una narración por voz (Web Speech API).
-// Todo corre en el navegador (sin servidor): Plotly para los gráficos,
-// Tone.js para el sonido.
-
-const CATEGORIAS = ["Teleserie", "Música / Viña", "Otra causa"];
-
-const ETIQUETAS = {
-  "Teleserie": "Teleseries",
-  "Música / Viña": "Música y Viña",
-  "Otra causa": "Otra causa identificada",
-};
+// Visualización: portada → bebés → alzas (beeswarm), con panel de detalle.
+// Todo corre en el navegador (sin servidor): d3 para el enjambre, Plotly para
+// el gráfico de detalle y Tone.js + Web Speech API para la sonificación.
 
 const raiz = getComputedStyle(document.documentElement);
-const COLOR = {
-  "Teleserie": raiz.getPropertyValue("--cat-teleserie").trim(),
-  "Música / Viña": raiz.getPropertyValue("--cat-musica").trim(),
-  "Otra causa": raiz.getPropertyValue("--cat-otra").trim(),
-};
 
-// Colores solo para los 2 ejemplos del gráfico 1 (antes de introducir las
-// categorías en la sección 2) — deliberadamente distintos de COLOR, para no
-// insinuar una categoría que todavía no se explicó.
-const COLOR_EJEMPLO_1 = "#4a3aa7"; // violeta
-const COLOR_EJEMPLO_2 = "#e34948"; // rojo
-
-// Config común para que ningún gráfico quede "pegado" en zoom (sin forma de
-// volver atrás si se toca sin querer).
+// Config común de Plotly (sin zoom, responsive).
 const SIN_ZOOM = { displayModeBar: false, responsive: true, scrollZoom: false };
 
 let DATOS = null; // { anio_min, anio_max, comunes: [...], booms: [...] }
 let IDENTIFICADOS = []; // DATOS.booms sin "Sin identificar"
-let rangoAnio = [1920, 2021];
-let categoriasActivas = new Set(CATEGORIAS);
-let boomSeleccionado = null;
 
 // ---------- Carga de datos ----------
 
@@ -48,308 +17,13 @@ fetch("data/nombres.json")
   .then((datos) => {
     DATOS = datos;
     IDENTIFICADOS = DATOS.booms.filter((b) => b.categoria_viz !== "Sin identificar");
-    rangoAnio = [datos.anio_min, datos.anio_max];
-    document.getElementById("rango-min").min = datos.anio_min;
-    document.getElementById("rango-min").max = datos.anio_max;
-    document.getElementById("rango-max").min = datos.anio_min;
-    document.getElementById("rango-max").max = datos.anio_max;
-    document.getElementById("rango-min").value = datos.anio_min;
-    document.getElementById("rango-max").value = datos.anio_max;
-    document.querySelectorAll(".conteo-identificados").forEach((el) => {
-      el.textContent = IDENTIFICADOS.length;
-    });
-    construirChips();
-    dibujarIntro();
-    dibujarOverview();
-    dibujarRanking();
-    renderStats();
-    actualizarEtiquetaRango();
     rellenarBebes();
     dibujarSwarm();
   });
 
-// ---------- Sección 1: nombres comunes vs. booms de ejemplo ----------
+// ---------- Gráfico de detalle (serie anual del alza) ----------
 
-function dibujarIntro() {
-  const anios = [];
-  for (let a = DATOS.anio_min; a <= DATOS.anio_max; a++) anios.push(a);
-
-  const trazasComunes = DATOS.comunes.map((c, i) => {
-    const max = Math.max(...c.serie, 1);
-    return {
-      x: anios,
-      y: c.serie.map((v) => (v / max) * 100),
-      mode: "lines",
-      type: "scatter",
-      line: { color: "#c3c2b7", width: 2 },
-      name: "Nombres comunes (María, José, Juan…)",
-      legendgroup: "comunes",
-      showlegend: i === 0,
-      hovertemplate: `${c.nombre}: %{y:.0f}% de su máximo en %{x}<extra></extra>`,
-    };
-  });
-
-  const ejemplos = [
-    { nombre: "Yesenia", anio: 1974, color: COLOR_EJEMPLO_1 },
-    { nombre: "Millaray", anio: 2001, color: COLOR_EJEMPLO_2 },
-  ]
-    .map((e) => ({ ...e, boom: DATOS.booms.find((b) => b.nombre === e.nombre && b.anio === e.anio) }))
-    .filter((e) => e.boom);
-
-  const trazasBooms = ejemplos.map((e) => {
-    const max = Math.max(...e.boom.serie, 1);
-    return {
-      x: anios,
-      y: e.boom.serie.map((v) => (v / max) * 100),
-      mode: "lines",
-      type: "scatter",
-      line: { color: e.color, width: 3 },
-      name: `${e.boom.nombre} (${e.boom.anio})`,
-      hovertemplate: `${e.boom.nombre}: %{y:.0f}% de su máximo en %{x}<extra></extra>`,
-    };
-  });
-
-  const layout = {
-    margin: { t: 10, r: 10, b: 30, l: 50 },
-    paper_bgcolor: "transparent",
-    plot_bgcolor: "transparent",
-    xaxis: { gridcolor: "#e1e0d9", fixedrange: true },
-    yaxis: {
-      title: "% de su propio máximo histórico",
-      gridcolor: "#e1e0d9",
-      fixedrange: true,
-      range: [0, 108],
-    },
-    dragmode: false,
-    legend: { orientation: "h", y: -0.25 },
-    font: { family: "system-ui, sans-serif", color: "#0b0b0b" },
-  };
-
-  Plotly.newPlot("grafico-intro", [...trazasComunes, ...trazasBooms], layout, SIN_ZOOM);
-}
-
-// ---------- Chips de categoría (filtro) ----------
-
-function construirChips() {
-  const cont = document.getElementById("chips-categoria");
-  CATEGORIAS.forEach((cat) => {
-    const chip = document.createElement("span");
-    chip.className = "chip";
-    chip.dataset.categoria = cat;
-    chip.innerHTML = `<span class="punto" style="background:${COLOR[cat]}"></span>${ETIQUETAS[cat]}`;
-    chip.addEventListener("click", () => {
-      if (categoriasActivas.has(cat)) {
-        categoriasActivas.delete(cat);
-        chip.classList.add("inactivo");
-      } else {
-        categoriasActivas.add(cat);
-        chip.classList.remove("inactivo");
-      }
-      dibujarOverview();
-    });
-    cont.appendChild(chip);
-  });
-}
-
-// ---------- Slider de década (dos sliders enlazados) ----------
-
-const inputMin = document.getElementById("rango-min");
-const inputMax = document.getElementById("rango-max");
-
-function actualizarEtiquetaRango() {
-  document.getElementById("rango-label").textContent = `${rangoAnio[0]} – ${rangoAnio[1]}`;
-}
-
-[inputMin, inputMax].forEach((input) => {
-  input.addEventListener("input", () => {
-    let min = parseInt(inputMin.value, 10);
-    let max = parseInt(inputMax.value, 10);
-    if (min > max) {
-      if (input === inputMin) max = min;
-      else min = max;
-      inputMin.value = min;
-      inputMax.value = max;
-    }
-    rangoAnio = [min, max];
-    actualizarEtiquetaRango();
-    dibujarOverview();
-  });
-});
-
-// ---------- Sección 2: vista general por categoría ----------
-
-function boomsFiltrados() {
-  return IDENTIFICADOS.filter(
-    (b) =>
-      categoriasActivas.has(b.categoria_viz) &&
-      b.anio >= rangoAnio[0] &&
-      b.anio <= rangoAnio[1]
-  );
-}
-
-function dibujarOverview() {
-  if (!DATOS) return;
-  const filtrados = boomsFiltrados();
-  const maxVeces = Math.max(...IDENTIFICADOS.map((b) => b.veces));
-  const sizeref = (2 * maxVeces) / 42 ** 2; // area proporcional al "veces", no al radio
-
-  const trazas = CATEGORIAS.map((cat) => {
-    const puntos = filtrados.filter((b) => b.categoria_viz === cat);
-    return {
-      name: ETIQUETAS[cat],
-      x: puntos.map((b) => b.anio),
-      y: puntos.map(() => cat),
-      customdata: puntos.map((b) => DATOS.booms.indexOf(b)),
-      text: puntos.map(
-        (b) =>
-          `${b.nombre} (${b.sexo}), ${b.anio}<br>${b.veces.toFixed(1)}x sobre lo previo, +${b.extra} guaguas<br>${b.categoria}`
-      ),
-      hovertemplate: "%{text}<extra></extra>",
-      mode: "markers",
-      type: "scatter",
-      marker: {
-        size: puntos.map((b) => b.veces),
-        sizemode: "area",
-        sizeref,
-        sizemin: 6,
-        color: COLOR[cat],
-        opacity: 0.85,
-        line: { width: 1, color: "rgba(0,0,0,0.25)" },
-      },
-    };
-  });
-
-  const layout = {
-    margin: { t: 10, r: 10, b: 40, l: 150 },
-    paper_bgcolor: "transparent",
-    plot_bgcolor: "transparent",
-    xaxis: {
-      title: "Año del boom",
-      range: [1918, 2023],
-      gridcolor: "#e1e0d9",
-      zeroline: false,
-      fixedrange: true,
-    },
-    yaxis: {
-      type: "category",
-      categoryarray: [...CATEGORIAS].reverse(),
-      automargin: true,
-      gridcolor: "#e1e0d9",
-      fixedrange: true,
-    },
-    dragmode: false,
-    showlegend: false,
-    font: { family: "system-ui, sans-serif", color: "#0b0b0b" },
-  };
-
-  Plotly.react("grafico-overview", trazas, layout, SIN_ZOOM);
-
-  const gd = document.getElementById("grafico-overview");
-  gd.removeAllListeners?.("plotly_click");
-  gd.on("plotly_click", (ev) => {
-    const idx = ev.points[0].customdata;
-    seleccionarBoom(idx);
-  });
-}
-
-// ---------- Sección 3: ranking de los booms más grandes ----------
-
-function construirLeyendaRanking() {
-  const cont = document.getElementById("leyenda-ranking");
-  CATEGORIAS.forEach((cat) => {
-    const item = document.createElement("span");
-    item.className = "chip chip-estatico";
-    item.innerHTML = `<span class="punto" style="background:${COLOR[cat]}"></span>${ETIQUETAS[cat]}`;
-    cont.appendChild(item);
-  });
-}
-
-function dibujarRanking() {
-  construirLeyendaRanking();
-  const top = IDENTIFICADOS.slice()
-    .sort((a, b) => b.veces - a.veces)
-    .slice(0, 12);
-  // Plotly dibuja barras horizontales de abajo hacia arriba en el orden del
-  // arreglo; se invierte para que el boom más grande quede arriba.
-  const ordenado = top.slice().reverse();
-
-  const traza = {
-    x: ordenado.map((b) => b.veces),
-    y: ordenado.map((b) => `${b.nombre} (${b.anio})`),
-    customdata: ordenado.map((b) => DATOS.booms.indexOf(b)),
-    type: "bar",
-    orientation: "h",
-    marker: { color: ordenado.map((b) => COLOR[b.categoria_viz]) },
-    text: ordenado.map((b) => `${b.veces.toFixed(0)}x`),
-    textposition: "outside",
-    hovertemplate: "%{y}: %{x:.1f}x sobre lo previo<extra></extra>",
-  };
-
-  const layout = {
-    margin: { t: 10, r: 40, b: 40, l: 170 },
-    paper_bgcolor: "transparent",
-    plot_bgcolor: "transparent",
-    xaxis: { title: "Veces sobre el promedio previo", gridcolor: "#e1e0d9", fixedrange: true },
-    yaxis: { gridcolor: "#e1e0d9", fixedrange: true },
-    dragmode: false,
-    showlegend: false,
-    font: { family: "system-ui, sans-serif", color: "#0b0b0b" },
-  };
-
-  Plotly.newPlot("grafico-ranking", [traza], layout, SIN_ZOOM);
-
-  const gd = document.getElementById("grafico-ranking");
-  gd.on("plotly_click", (ev) => {
-    const idx = ev.points[0].customdata;
-    seleccionarBoom(idx);
-    document.getElementById("detalle").scrollIntoView({ behavior: "smooth", block: "center" });
-  });
-}
-
-function renderStats() {
-  const teleseries = IDENTIFICADOS.filter((b) => b.categoria_viz === "Teleserie");
-  const pctConteo = Math.round((teleseries.length / IDENTIFICADOS.length) * 100);
-  const extraTotal = IDENTIFICADOS.reduce((acc, b) => acc + b.extra, 0);
-  const extraTeleserie = teleseries.reduce((acc, b) => acc + b.extra, 0);
-  const pctExtra = Math.round((extraTeleserie / extraTotal) * 100);
-  const maximo = IDENTIFICADOS.slice().sort((a, b) => b.veces - a.veces)[0];
-
-  document.getElementById("stat-conteo").textContent =
-    `${teleseries.length} de ${IDENTIFICADOS.length} (${pctConteo}%)`;
-  document.getElementById("stat-extra").textContent = `${pctExtra}%`;
-  document.getElementById("stat-maximo").textContent =
-    `${maximo.nombre}, ${maximo.veces.toFixed(0)}x (${maximo.anio})`;
-}
-
-// ---------- Panel de detalle (compartido por los gráficos 2 y 3) ----------
-
-function seleccionarBoom(idx) {
-  boomSeleccionado = DATOS.booms[idx];
-  const b = boomSeleccionado;
-
-  document.getElementById("detalle").classList.add("visible");
-  document.getElementById("detalle-nombre").textContent = `${b.nombre} (${b.anio})`;
-
-  const chip = document.getElementById("detalle-chip");
-  chip.textContent = ETIQUETAS[b.categoria_viz];
-  chip.style.background = COLOR[b.categoria_viz];
-
-  const causaEl = document.getElementById("detalle-causa");
-  causaEl.textContent = `Coincide con: ${b.causa}. (Confianza: ${b.confianza.toLowerCase()}; coincidir en el tiempo no prueba causa.)`;
-
-  const metaEl = document.getElementById("detalle-meta");
-  const fuenteHtml = b.fuente ? ` · <a href="${b.fuente}" target="_blank" rel="noopener">fuente</a>` : "";
-  metaEl.innerHTML = `De ${Math.round(b.prev)} a ${b.n} inscripciones (${b.veces.toFixed(1)}x), +${b.extra} guaguas extra${fuenteHtml}`;
-
-  dibujarDetalle(b);
-
-  asegurarAudio().then(() => {
-    reproducirEarcon(b);
-    decirBoom(b);
-  });
-}
-
-function dibujarDetalle(b) {
+function dibujarDetalle(b, contenedorId, color) {
   const anios = [];
   for (let a = DATOS.anio_min; a <= DATOS.anio_max; a++) anios.push(a);
 
@@ -359,8 +33,8 @@ function dibujarDetalle(b) {
     mode: "lines",
     type: "scatter",
     fill: "tozeroy",
-    line: { color: COLOR[b.categoria_viz], width: 2 },
-    fillcolor: COLOR[b.categoria_viz] + "22",
+    line: { color, width: 2 },
+    fillcolor: color + "22",
     hovertemplate: "%{x}: %{y} inscripciones<extra></extra>",
   };
 
@@ -385,7 +59,7 @@ function dibujarDetalle(b) {
       {
         x: b.anio,
         y: Math.max(...b.serie) * 1.05,
-        text: "boom",
+        text: "alza",
         showarrow: false,
         yanchor: "bottom",
         font: { size: 11, color: "#52514e" },
@@ -394,7 +68,7 @@ function dibujarDetalle(b) {
     font: { family: "system-ui, sans-serif", color: "#0b0b0b" },
   };
 
-  Plotly.react("grafico-detalle", [traza], layout, SIN_ZOOM);
+  Plotly.react(contenedorId, [traza], layout, SIN_ZOOM);
 }
 
 // ---------- Sonificación (Tone.js + Web Speech API) ----------
@@ -453,55 +127,104 @@ function asegurarAudio() {
 // que el primero, así que se fuerza un mínimo de separación.
 const ultimoInicioPorCategoria = {};
 
+// Los booms "Sin identificar" no tienen timbre propio: se usa el de "Otra
+// causa" para que el earcon no falle.
+function timbreDe(b) {
+  return b.categoria_viz === "Sin identificar" ? "Otra causa" : b.categoria_viz;
+}
+
 function reproducirEarcon(b) {
-  const synth = voces[b.categoria_viz];
+  if (!voces) return;
+  const clave = timbreDe(b);
+  const synth = voces[clave];
+  if (!synth) return;
   const nota = notaDesdeT(tDesdeVeces(b.veces));
   const duracion = Math.min(1.0, 0.2 + b.extra / 2000);
-  const anterior = ultimoInicioPorCategoria[b.categoria_viz] || 0;
+  const anterior = ultimoInicioPorCategoria[clave] || 0;
   const inicio = Math.max(Tone.now(), anterior + 0.02);
   synth.triggerAttackRelease(nota, duracion, inicio);
-  ultimoInicioPorCategoria[b.categoria_viz] = inicio;
+  ultimoInicioPorCategoria[clave] = inicio;
 }
 
 function decirBoom(b) {
   if (!("speechSynthesis" in window)) return;
   speechSynthesis.cancel();
-  const texto = `${b.nombre}. De ${Math.round(b.prev)} a ${b.n} inscripciones en ${b.anio}. ${b.causa}.`;
+  const causa = b.causa || "sin causa identificada";
+  const texto = `${b.nombre}. De ${Math.round(b.prev)} a ${b.n} inscripciones en ${b.anio}. ${causa}.`;
   const u = new SpeechSynthesisUtterance(texto);
   u.lang = "es-CL";
   u.rate = 1.05;
   speechSynthesis.speak(u);
 }
 
+// ---------- Navegación entre slides ----------
+//
+// Las slides permanecen en el DOM y se ocultan/muestran con su clase de
+// salida (se deslizan hacia arriba para avanzar y hacia abajo para volver).
+// El z-index (portada > bebés > swarm) hace que la de arriba cubra a la de
+// abajo al retroceder.
+
+const CLASE_SALIDA = {
+  portada: "portada-salida",
+  bebes: "overview-salida",
+  swarm: "swarm-salida",
+};
+
+let pasoActual = "portada"; // "portada" | "bebes" | "swarm"
+let bebesAnimados = false;
+
+function elPaso(paso) {
+  if (paso === "portada") return document.getElementById("portada");
+  if (paso === "bebes") return document.getElementById("overview");
+  if (paso === "swarm") return document.getElementById("swarm");
+  return null;
+}
+
+function ocultarPaso(paso) {
+  const el = elPaso(paso);
+  if (el) el.classList.add(CLASE_SALIDA[paso]);
+}
+
+function mostrarPaso(paso) {
+  const el = elPaso(paso);
+  if (el) el.classList.remove(CLASE_SALIDA[paso]);
+}
+
+function avanzarPortada() {
+  if (pasoActual !== "portada") return;
+  pasoActual = "bebes";
+  ocultarPaso("portada");
+  if (!bebesAnimados) {
+    bebesAnimados = true;
+    animarBebes(); // los bebés se colorean mientras la portada se desliza
+  }
+}
+
+function avanzarBebes() {
+  if (pasoActual !== "bebes") return;
+  pasoActual = "swarm";
+  ocultarPaso("bebes");
+}
+
+function volverAtras() {
+  if (pasoActual === "swarm") {
+    volverSwarm();
+    pasoActual = "bebes";
+    mostrarPaso("bebes");
+  } else if (pasoActual === "bebes") {
+    pasoActual = "portada";
+    mostrarPaso("portada");
+  }
+}
+
 // ---------- Portada de presentación ----------
 //
-// La visualización arranca cubierta por #portada (pantalla de título). Un
-// clic en cualquier parte de la portada la desliza hacia arriba y revela la
-// visualización, que ya quedó renderizada detrás.
+// Pantalla de título. Un clic en cualquier parte avanza a la slide de bebés.
 
 function initPortada() {
   const portada = document.getElementById("portada");
   if (!portada) return;
-
-  const salir = () => {
-    portada.classList.add("portada-salida");
-    portada.removeEventListener("click", salir);
-    animarBebes(); // los bebés ya empiezan a colorearse mientras se desliza
-
-    let hecho = false;
-    const terminar = () => {
-      if (hecho) return;
-      hecho = true;
-      portada.remove();
-    };
-
-    portada.addEventListener("transitionend", (ev) => {
-      if (ev.target === portada) terminar();
-    });
-    setTimeout(terminar, 800);
-  };
-
-  portada.addEventListener("click", salir);
+  portada.addEventListener("click", avanzarPortada);
 }
 
 initPortada();
@@ -540,17 +263,15 @@ let pendienteAnimacion = false;
 function initOverview() {
   const overview = document.getElementById("overview");
   if (!overview) return;
+  overview.addEventListener("click", avanzarBebes);
 
-  const salir = () => {
-    overview.classList.add("overview-salida");
-    // El bloqueo de scroll se mantiene: después del overview viene la slide
-    // del beeswarm, que lo libera recién al salir.
-    overview.removeEventListener("click", salir);
-    overview.addEventListener("transitionend", () => overview.remove(), { once: true });
-    setTimeout(() => overview.remove(), 800);
-  };
-
-  overview.addEventListener("click", salir);
+  const atras = document.getElementById("bebes-atras");
+  if (atras) {
+    atras.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      volverAtras();
+    });
+  }
 }
 
 function rellenarBebes() {
@@ -642,7 +363,7 @@ const COLOR_SWARM = {
   "Sin identificar": raiz.getPropertyValue("--cat-sin-identificar").trim(),
 };
 
-const RADIO_SWARM = 4;
+const RADIO_SWARM = 5;
 
 // Dimensiones internas del SVG y factor de zoom de página completa.
 const ANCHO_SWARM = 820;
@@ -654,55 +375,111 @@ let capaSwarm = null; // <g> contenedor del dibujo (ya no se transforma)
 let nodoActivo = null;
 let timerDetalleSwarm = null;
 let zoomSwarm = { k: 1, tx: 0, ty: 0 }; // transform actual de #swarm-zoom
+let gruposActivos = new Set(ORDEN_SWARM); // filtro de la leyenda (multiselección)
+
+function actualizarLeyendaSwarm() {
+  document.querySelectorAll("#swarm-leyenda .item").forEach((item) => {
+    const activo = gruposActivos.has(item.dataset.grupo);
+    item.classList.toggle("inactivo", !activo);
+    item.setAttribute("aria-pressed", activo ? "true" : "false");
+  });
+}
+
+function alternarGrupoSwarm(grupo) {
+  if (gruposActivos.has(grupo)) gruposActivos.delete(grupo);
+  else gruposActivos.add(grupo);
+  // No permitir quedar en cero: se vuelve a mostrar todo.
+  if (gruposActivos.size === 0) gruposActivos = new Set(ORDEN_SWARM);
+  volverSwarm();
+  dibujarSwarm();
+}
 
 function construirLeyendaSwarm() {
   const cont = document.getElementById("swarm-leyenda");
   if (!cont) return;
   cont.innerHTML = "";
   ORDEN_SWARM.forEach((grupo) => {
-    const item = document.createElement("span");
+    const item = document.createElement("button");
+    item.type = "button";
     item.className = "item";
-    item.innerHTML = `<span class="swatch" style="background:${COLOR_SWARM[grupo]}"></span>${grupo}`;
+    item.dataset.grupo = grupo;
+    item.textContent = grupo;
+    item.style.background = COLOR_SWARM[grupo];
+    item.addEventListener("click", () => alternarGrupoSwarm(grupo));
     cont.appendChild(item);
   });
+  actualizarLeyendaSwarm();
+}
+
+// Tooltip que sigue al cursor al pasar sobre un punto.
+function posicionarTooltipSwarm(ev) {
+  const tip = document.getElementById("swarm-tooltip");
+  const swarm = document.getElementById("swarm");
+  if (!tip || !swarm || tip.hidden) return;
+  const r = swarm.getBoundingClientRect();
+  const x = ev.clientX - r.left;
+  const y = ev.clientY - r.top;
+  const w = tip.offsetWidth;
+  const h = tip.offsetHeight;
+  let left = x + 14;
+  let top = y + 14;
+  if (left + w > r.width - 6) left = x - w - 14;
+  if (top + h > r.height - 6) top = y - h - 14;
+  tip.style.left = `${Math.max(6, left)}px`;
+  tip.style.top = `${Math.max(6, top)}px`;
+}
+
+function mostrarTooltipSwarm(ev, d) {
+  const tip = document.getElementById("swarm-tooltip");
+  if (!tip) return;
+  const grupo = GRUPO_SWARM[d.boom.categoria] || "Sin identificar";
+  tip.innerHTML =
+    `<strong>${d.boom.nombre} (${d.boom.anio})</strong><br>` +
+    `<span class="punto-color" style="background:${COLOR_SWARM[grupo]}"></span>` +
+    `${grupo} · ${d.veces.toFixed(1)}x`;
+  tip.hidden = false;
+  posicionarTooltipSwarm(ev);
+}
+
+function ocultarTooltipSwarm() {
+  const tip = document.getElementById("swarm-tooltip");
+  if (tip) tip.hidden = true;
 }
 
 function llenarDetalleSwarm(b) {
-  const el = document.getElementById("swarm-detalle");
-  if (!el) return;
   const grupo = GRUPO_SWARM[b.categoria] || "Sin identificar";
-  el.innerHTML =
-    `<strong>${b.nombre} (${b.anio})</strong>` +
-    `<span class="chip" style="background:${COLOR_SWARM[grupo]}">${grupo}</span><br>` +
-    (b.causa ? `Coincide con: ${b.causa}.` : "Sin causa identificada.") +
-    ` Se disparó ${b.veces.toFixed(1)}x sobre el promedio previo ` +
-    `(${Math.round(b.prev)} → ${b.n} inscripciones).`;
+  const color = COLOR_SWARM[grupo];
+
+  document.getElementById("swarm-detalle-nombre").textContent = `${b.nombre} (${b.anio})`;
+
+  const chip = document.getElementById("swarm-detalle-chip");
+  chip.textContent = grupo;
+  chip.style.background = color;
+
+  const causaEl = document.getElementById("swarm-detalle-causa");
+  causaEl.textContent = b.causa
+    ? `Coincide con: ${b.causa}. (Confianza: ${b.confianza.toLowerCase()}; coincidir en el tiempo no prueba causa.)`
+    : "Sin causa identificada.";
+
+  const metaEl = document.getElementById("swarm-detalle-meta");
+  const fuenteHtml = b.fuente
+    ? ` · <a href="${b.fuente}" target="_blank" rel="noopener">fuente</a>`
+    : "";
+  metaEl.innerHTML =
+    `De ${Math.round(b.prev)} a ${b.n} inscripciones (${b.veces.toFixed(1)}x), ` +
+    `+${b.extra} guaguas extra${fuenteHtml}`;
+
+  dibujarDetalle(b, "swarm-grafico-detalle", color);
 }
 
-// Coloca la tarjeta junto al punto, cuya posición final en el viewport es
-// (k·local + t), al lado opuesto al borde y sin salirse de la pantalla.
-function posicionarTarjetaSwarm(localX, localY, k, tx, ty, lado) {
+function mostrarPanelSwarm(b) {
   const el = document.getElementById("swarm-detalle");
-  const swarm = document.getElementById("swarm");
-  if (!el || !swarm) return;
-
-  const swarmRect = swarm.getBoundingClientRect();
-  const px = k * localX + tx - swarmRect.left;
-  const py = k * localY + ty - swarmRect.top;
-
+  if (!el) return;
   el.hidden = false;
-  const cw = el.offsetWidth;
-  const ch = el.offsetHeight;
-  const offset = 20;
-
-  let left = lado === "derecha" ? px + offset : px - offset - cw;
-  let top = py - ch / 2;
-
-  left = Math.max(4, Math.min(left, swarmRect.width - cw - 4));
-  top = Math.max(4, Math.min(top, swarmRect.height - ch - 4));
-
-  el.style.left = `${left}px`;
-  el.style.top = `${top}px`;
+  // Fuerza un reflow para que la transición de entrada se reproduzca.
+  void el.offsetWidth;
+  el.classList.add("visible");
+  llenarDetalleSwarm(b);
 }
 
 function seleccionarPuntoSwarm(ev, d) {
@@ -712,7 +489,15 @@ function seleccionarPuntoSwarm(ev, d) {
   if (!zoom || !swarm || !circle) return;
 
   nodoActivo = d;
-  llenarDetalleSwarm(d.boom);
+  ocultarTooltipSwarm();
+
+  // Sonificación: tono según la magnitud + narración de voz.
+  asegurarAudio()
+    .then(() => {
+      reproducirEarcon(d.boom);
+      decirBoom(d.boom);
+    })
+    .catch(() => {});
 
   // Coordenadas locales del punto dentro de #swarm-zoom, invirtiendo el
   // transform actual (funciona aunque ya haya un zoom activo).
@@ -723,9 +508,19 @@ function seleccionarPuntoSwarm(ev, d) {
   const localY = (rect.top + rect.height / 2 - zoomRect.top) / k0;
 
   const swarmRect = swarm.getBoundingClientRect();
-  const lado = localX < swarmRect.width / 2 ? "derecha" : "izquierda";
-  const anchorX = lado === "derecha" ? swarmRect.width * 0.4 : swarmRect.width * 0.6;
-  const anchorY = swarmRect.height * 0.5;
+  const esMovil = window.matchMedia("(max-width: 720px)").matches;
+  let anchorX;
+  let anchorY;
+  if (esMovil) {
+    // Panel como bottom sheet: el punto se ancla en la franja superior libre.
+    anchorX = swarmRect.width * 0.5;
+    anchorY = swarmRect.height * 0.14;
+  } else {
+    // Panel lateral derecho: el punto se ancla al área libre de la izquierda.
+    const anchoPanel = Math.min(620, swarmRect.width);
+    anchorX = Math.max(swarmRect.width * 0.15, (swarmRect.width - anchoPanel) / 2);
+    anchorY = swarmRect.height * 0.5;
+  }
   const k = ZOOM_SWARM;
   const tx = anchorX - k * localX;
   const ty = anchorY - k * localY;
@@ -738,23 +533,37 @@ function seleccionarPuntoSwarm(ev, d) {
 
   const volver = document.getElementById("swarm-volver");
   if (volver) volver.hidden = false;
+  const atras = document.getElementById("swarm-atras");
+  if (atras) atras.hidden = true;
 
-  // La tarjeta se muestra cuando el zoom ya llegó a su destino.
+  // El panel se muestra cuando el zoom ya llegó a su destino.
   const el = document.getElementById("swarm-detalle");
-  if (el) el.hidden = true;
+  if (el) {
+    el.classList.remove("visible");
+    el.hidden = true;
+  }
   clearTimeout(timerDetalleSwarm);
   timerDetalleSwarm = setTimeout(() => {
-    if (nodoActivo === d) posicionarTarjetaSwarm(localX, localY, k, tx, ty, lado);
+    if (nodoActivo === d) mostrarPanelSwarm(d.boom);
   }, 620);
 }
 
 function volverSwarm() {
   nodoActivo = null;
   clearTimeout(timerDetalleSwarm);
+
   const el = document.getElementById("swarm-detalle");
-  if (el) el.hidden = true;
+  if (el) {
+    el.classList.remove("visible");
+    setTimeout(() => {
+      if (!el.classList.contains("visible")) el.hidden = true;
+    }, 450);
+  }
+
   const volver = document.getElementById("swarm-volver");
   if (volver) volver.hidden = true;
+  const atras = document.getElementById("swarm-atras");
+  if (atras) atras.hidden = false;
 
   const zoom = document.getElementById("swarm-zoom");
   if (zoom) {
@@ -774,11 +583,23 @@ function dibujarSwarm() {
 
   construirLeyendaSwarm();
 
-  const nodos = DATOS.booms.map((b) => ({
-    boom: b,
-    grupo: GRUPO_SWARM[b.categoria] || "Sin identificar",
-    veces: b.veces,
-  }));
+  // Solo los grupos activos (filtro de la leyenda); si el filtro deja menos
+  // categorías, se reparten en todo el ancho y los puntos se dibujan más
+  // grandes para verlos con más detalle.
+  const activos = ORDEN_SWARM.filter((g) => gruposActivos.has(g));
+  const dominio = activos.length > 0 ? activos : ORDEN_SWARM;
+  const radio =
+    dominio.length >= ORDEN_SWARM.length
+      ? RADIO_SWARM
+      : Math.min(14, RADIO_SWARM * Math.sqrt(ORDEN_SWARM.length / dominio.length));
+
+  const nodos = DATOS.booms
+    .map((b) => ({
+      boom: b,
+      grupo: GRUPO_SWARM[b.categoria] || "Sin identificar",
+      veces: b.veces,
+    }))
+    .filter((n) => dominio.includes(n.grupo));
 
   const W = 820;
   const H = 430;
@@ -786,7 +607,7 @@ function dibujarSwarm() {
 
   const x = d3
     .scaleBand()
-    .domain(ORDEN_SWARM)
+    .domain(dominio)
     .range([margen.l, W - margen.r])
     .paddingInner(0.35)
     .paddingOuter(0.2);
@@ -795,7 +616,7 @@ function dibujarSwarm() {
 
   const y = d3
     .scaleLog()
-    .domain([4, 300])
+    .domain([3, 300])
     .range([H - margen.b, margen.t]);
 
   // Semilla determinista: mismo layout en cada carga.
@@ -814,10 +635,18 @@ function dibujarSwarm() {
     .forceSimulation(nodos)
     .force("x", d3.forceX((d) => centroX(d.grupo)).strength(0.6))
     .force("y", d3.forceY((d) => y(d.veces)).strength(1))
-    .force("collide", d3.forceCollide(RADIO_SWARM + 1).strength(1).iterations(4))
+    .force("collide", d3.forceCollide(radio + 1).strength(1).iterations(4))
     .stop();
 
-  for (let i = 0; i < 320; i++) sim.tick();
+  for (let i = 0; i < 320; i++) {
+    sim.tick();
+    // Acota los puntos al área del gráfico para que el cúmulo inferior no
+    // invada la franja de etiquetas del eje X.
+    nodos.forEach((n) => {
+      n.x = Math.max(margen.l + radio, Math.min(n.x, W - margen.r - radio));
+      n.y = Math.max(margen.t + radio, Math.min(n.y, H - margen.b - radio));
+    });
+  }
 
   cont.innerHTML = "";
   svgSwarm = d3
@@ -863,7 +692,7 @@ function dibujarSwarm() {
   const ejeX = capaSwarm.append("g").attr("class", "eje");
   ejeX
     .selectAll("text")
-    .data(ORDEN_SWARM)
+    .data(dominio)
     .join("text")
     .attr("x", (g) => centroX(g))
     .attr("y", H - margen.b + 26)
@@ -879,37 +708,27 @@ function dibujarSwarm() {
     .attr("class", "punto")
     .attr("cx", (d) => d.x)
     .attr("cy", (d) => d.y)
-    .attr("r", RADIO_SWARM)
+    .attr("r", radio)
     .attr("fill", (d) => COLOR_SWARM[d.grupo])
     .attr("fill-opacity", 0.85)
+    .on("mouseover", (ev, d) => mostrarTooltipSwarm(ev, d))
+    .on("mousemove", (ev) => posicionarTooltipSwarm(ev))
+    .on("mouseout", () => ocultarTooltipSwarm())
     .on("click", (ev, d) => seleccionarPuntoSwarm(ev, d));
 }
 
 function initSwarm() {
   const swarm = document.getElementById("swarm");
   if (!swarm) return;
-  const btn = document.getElementById("swarm-continuar");
+
   const volver = document.getElementById("swarm-volver");
   if (volver) volver.addEventListener("click", volverSwarm);
 
-  const salir = () => {
-    swarm.classList.add("swarm-salida");
-    document.body.classList.remove("intro-activa");
-    if (btn) btn.removeEventListener("click", salir);
+  const cerrar = document.getElementById("swarm-detalle-cerrar");
+  if (cerrar) cerrar.addEventListener("click", volverSwarm);
 
-    let hecho = false;
-    const terminar = () => {
-      if (hecho) return;
-      hecho = true;
-      swarm.remove();
-    };
-    swarm.addEventListener("transitionend", (ev) => {
-      if (ev.target === swarm) terminar();
-    });
-    setTimeout(terminar, 800);
-  };
-
-  if (btn) btn.addEventListener("click", salir);
+  const atras = document.getElementById("swarm-atras");
+  if (atras) atras.addEventListener("click", volverAtras);
 }
 
 initSwarm();
