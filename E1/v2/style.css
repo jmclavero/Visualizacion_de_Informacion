@@ -17,6 +17,8 @@
 
   --bebe-tv: #a8d8ea;
   --bebe-gris: #c3c2b7;
+  --bebe-tv-hover: #1fe6cf;
+  --bebe-gris-hover: #2b2a25;
 }
 
 * {
@@ -190,19 +192,19 @@ body.intro-activa {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: clamp(4px, 1vh, 8px);
-  width: clamp(120px, 15vw, 196px);
+  gap: clamp(6px, 1.2vh, 10px);
+  width: clamp(150px, 18vw, 240px);
   text-align: center;
   border-radius: 16px;
-  padding: clamp(6px, 1.2vh, 12px);
+  padding: clamp(8px, 1.6vh, 16px);
   cursor: default;
 }
 
 .leyenda-icono-grande {
   flex: 0 0 auto;
-  width: clamp(64px, 12vh, 128px);
-  height: clamp(64px, 12vh, 128px);
-  transition: transform 0.2s ease, filter 0.2s ease;
+  width: clamp(80px, 15vh, 160px);
+  height: clamp(80px, 15vh, 160px);
+  transition: transform 0.2s ease, color 0.2s ease;
 }
 
 .leyenda-icono-grande circle,
@@ -218,25 +220,38 @@ body.intro-activa {
   color: var(--bebe-gris);
 }
 
-/* Animación simple al pasar el cursor: la figura crece un poco, como
-   invitando a leer su descripción. */
+/* Al pasar el cursor por la figura o por su texto (ambos viven dentro de
+   .leyenda-lateral, así que cualquiera de los dos dispara el :hover del
+   contenedor): la figura crece y cambia a un color de acento — turquesa
+   neón para el lado TV, un gris muy oscuro para el otro lado — en vez de
+   solo oscurecerse un poco, para que el realce sea inconfundible. */
 .leyenda-lateral:hover .leyenda-icono-grande,
 .leyenda-lateral:focus-visible .leyenda-icono-grande {
-  transform: scale(1.12) translateY(-4px);
-  filter: brightness(0.92);
+  transform: scale(1.16) translateY(-5px);
+}
+
+.leyenda-tv:hover .leyenda-icono-grande,
+.leyenda-tv:focus-visible .leyenda-icono-grande {
+  color: var(--bebe-tv-hover);
+}
+
+.leyenda-gris:hover .leyenda-icono-grande,
+.leyenda-gris:focus-visible .leyenda-icono-grande {
+  color: var(--bebe-gris-hover);
 }
 
 .leyenda-texto {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
 }
 
 .leyenda-num {
-  font-size: clamp(1.25rem, min(2.4vw, 2.9vh), 1.7rem);
+  font-size: clamp(1.5rem, min(2.8vw, 3.4vh), 2.1rem);
   font-weight: 800;
   line-height: 1.1;
+  transition: transform 0.2s ease;
 }
 
 .leyenda-tv .leyenda-num {
@@ -249,9 +264,30 @@ body.intro-activa {
 
 .leyenda-desc {
   margin: 0;
-  font-size: clamp(0.76rem, min(1.2vw, 1.5vh), 0.88rem);
+  font-size: clamp(1rem, min(1.6vw, 2vh), 1.15rem);
   color: var(--text-secondary);
-  line-height: 1.4;
+  line-height: 1.45;
+  transition: transform 0.2s ease, color 0.2s ease, font-weight 0.2s ease;
+}
+
+/* El número y el texto también crecen y se resaltan en negrita al pasar
+   el cursor: azul para el lado TV, negro para el otro. */
+.leyenda-lateral:hover .leyenda-num,
+.leyenda-lateral:hover .leyenda-desc,
+.leyenda-lateral:focus-visible .leyenda-num,
+.leyenda-lateral:focus-visible .leyenda-desc {
+  transform: scale(1.07);
+  font-weight: 700;
+}
+
+.leyenda-tv:hover .leyenda-desc,
+.leyenda-tv:focus-visible .leyenda-desc {
+  color: var(--cat-teleserie);
+}
+
+.leyenda-gris:hover .leyenda-desc,
+.leyenda-gris:focus-visible .leyenda-desc {
+  color: var(--text-primary);
 }
 
 @media (max-width: 860px) {
@@ -262,14 +298,14 @@ body.intro-activa {
   .leyenda-lateral {
     flex-direction: row;
     width: 100%;
-    max-width: 440px;
+    max-width: 480px;
     text-align: left;
-    gap: clamp(10px, 2vw, 16px);
+    gap: clamp(12px, 2.4vw, 20px);
   }
 
   .leyenda-icono-grande {
-    width: clamp(48px, 9vh, 72px);
-    height: clamp(48px, 9vh, 72px);
+    width: clamp(56px, 10vh, 84px);
+    height: clamp(56px, 10vh, 84px);
   }
 
   .leyenda-texto {
