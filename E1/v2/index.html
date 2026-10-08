@@ -32,23 +32,33 @@
     </p>
     <div class="bebes-grid" id="bebes-grid" aria-hidden="true"></div>
     <div class="bebes-leyenda">
-      <span class="item">
-        <span class="swatch" style="background:var(--bebe-tv)"></span>
-        Explicado por la televisión (teleseries, series, TV en vivo,
-        Festival de Viña): <strong id="bebe-tv-conteo">—</strong>
-      </span>
-      <span class="item">
-        <span class="swatch" style="background:var(--bebe-gris)"></span>
-        Sin causa televisiva (otra causa identificada o sin identificar):
-        <strong id="bebe-gris-conteo">—</strong>
-      </span>
+      <div class="leyenda-item leyenda-tv">
+        <svg class="leyenda-icono" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="7.6" r="4.9" />
+          <path d="M12 12.4c-4.1 0-6.9 2.5-6.9 6 0 1.3 1 2.3 2.3 2.3h9.2c1.3 0 2.3-1 2.3-2.3 0-3.5-2.8-6-6.9-6z" />
+        </svg>
+        <span class="leyenda-texto">
+          <strong class="leyenda-num" id="bebe-tv-conteo">—</strong>
+          <span class="leyenda-desc">esta personita azul = explicado por la televisión (teleseries, series, TV en vivo, Festival de Viña)</span>
+        </span>
+      </div>
+      <div class="leyenda-item leyenda-gris">
+        <svg class="leyenda-icono" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="7.6" r="4.9" />
+          <path d="M12 12.4c-4.1 0-6.9 2.5-6.9 6 0 1.3 1 2.3 2.3 2.3h9.2c1.3 0 2.3-1 2.3-2.3 0-3.5-2.8-6-6.9-6z" />
+        </svg>
+        <span class="leyenda-texto">
+          <strong class="leyenda-num" id="bebe-gris-conteo">—</strong>
+          <span class="leyenda-desc">esta personita gris = sin causa televisiva (otra causa identificada o sin identificar)</span>
+        </span>
+      </div>
     </div>
     <p class="bebes-nota">
       De las 203 alzas significativas detectadas entre 1920 y 2021, 144 no
       tienen causa identificada.
     </p>
+    <div class="overview-flecha" aria-hidden="true">↓</div>
   </div>
-  <div class="portada-flecha" aria-hidden="true">↓</div>
 </div>
 
 <div id="swarm">

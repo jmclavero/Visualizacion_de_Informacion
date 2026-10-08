@@ -88,10 +88,11 @@ body.intro-activa {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: safe center;
   background: var(--page);
   cursor: pointer;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   will-change: transform;
   transform: translateY(0);
   transition: transform 0.6s ease-in-out;
@@ -106,8 +107,21 @@ body.intro-activa {
   width: 100%;
   max-width: 720px;
   max-height: 100%;
-  padding: clamp(16px, 4vh, 40px) 24px clamp(16px, 6vh, 60px);
+  padding: clamp(56px, 7vh, 64px) 24px clamp(16px, 4vh, 36px);
   text-align: center;
+}
+
+.overview-flecha {
+  margin-top: clamp(8px, 1.6vh, 18px);
+  font-size: clamp(1.4rem, 3vh, 2rem);
+  color: var(--text-secondary);
+  text-align: center;
+  animation: overview-rebote 1.6s ease-in-out infinite;
+}
+
+@keyframes overview-rebote {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(12px); }
 }
 
 .overview-eyebrow {
@@ -120,26 +134,27 @@ body.intro-activa {
 }
 
 .overview-titulo {
-  margin: 0 0 clamp(6px, 1.5vh, 12px);
-  font-size: clamp(1.1rem, min(3.2vw, 4.2vh), 1.9rem);
+  margin: 0 0 clamp(6px, 1.4vh, 12px);
+  font-size: clamp(1.25rem, min(3.4vw, 4.2vh), 2.05rem);
+  font-weight: 800;
   line-height: 1.2;
   color: var(--text-primary);
 }
 
 .overview-subtitulo {
-  margin: 0 auto clamp(10px, 2vh, 24px);
-  max-width: 60ch;
-  font-size: clamp(0.8rem, min(1.5vw, 1.9vh), 1rem);
+  margin: 0 auto clamp(8px, 1.6vh, 18px);
+  max-width: 62ch;
+  font-size: clamp(0.88rem, min(1.6vw, 1.9vh), 1.05rem);
   color: var(--text-secondary);
-  line-height: 1.55;
+  line-height: 1.5;
 }
 
 .bebes-grid {
   display: grid;
   grid-template-columns: repeat(10, 1fr);
   gap: clamp(3px, 0.6vh, 6px);
-  width: min(520px, 84vw, 56vh);
-  margin: 0 auto clamp(10px, 2vh, 24px);
+  width: min(560px, 86vw, 50vh);
+  margin: 0 auto clamp(8px, 1.6vh, 18px);
 }
 
 .bebe {
@@ -161,31 +176,74 @@ body.intro-activa {
 .bebes-leyenda {
   display: flex;
   flex-wrap: wrap;
-  gap: clamp(6px, 1.2vh, 12px) 24px;
+  gap: clamp(6px, 1.1vh, 12px);
   justify-content: center;
-  font-size: clamp(0.68rem, min(1.2vw, 1.6vh), 0.85rem);
-  color: var(--text-secondary);
+  align-items: stretch;
 }
 
-.bebes-leyenda .item {
-  display: inline-flex;
+.leyenda-item {
+  display: flex;
   align-items: center;
-  gap: 8px;
+  gap: clamp(7px, 1.2vw, 12px);
+  max-width: 300px;
+  padding: clamp(5px, 0.9vh, 10px) clamp(10px, 1.6vw, 16px);
+  border-radius: 14px;
+  border: 1.5px solid var(--border);
+  background: var(--surface-1);
+  text-align: left;
 }
 
-.bebes-leyenda .swatch {
-  width: 14px;
-  height: 14px;
-  border-radius: 3px;
-  display: inline-block;
+.leyenda-icono {
+  flex: 0 0 auto;
+  width: clamp(20px, 2.6vh, 28px);
+  height: clamp(20px, 2.6vh, 28px);
+}
+
+.leyenda-tv .leyenda-icono {
+  color: var(--bebe-tv);
+}
+
+.leyenda-gris .leyenda-icono {
+  color: var(--bebe-gris);
+}
+
+.leyenda-icono circle,
+.leyenda-icono path {
+  fill: currentColor;
+}
+
+.leyenda-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.leyenda-num {
+  font-size: clamp(1rem, min(2vw, 2.3vh), 1.3rem);
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.leyenda-tv .leyenda-num {
+  color: var(--cat-teleserie);
+}
+
+.leyenda-gris .leyenda-num {
+  color: var(--text-primary);
+}
+
+.leyenda-desc {
+  font-size: clamp(0.72rem, min(1.15vw, 1.5vh), 0.85rem);
+  color: var(--text-secondary);
+  line-height: 1.35;
 }
 
 .bebes-nota {
-  margin: clamp(8px, 1.5vh, 20px) auto 0;
-  max-width: 60ch;
-  font-size: clamp(0.66rem, min(1.1vw, 1.5vh), 0.78rem);
+  margin: clamp(6px, 1.1vh, 14px) auto 0;
+  max-width: 62ch;
+  font-size: clamp(0.7rem, min(1.1vw, 1.4vh), 0.82rem);
   color: var(--text-muted);
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
 /* ---------- Slide del beeswarm (punto 2) ---------- */
