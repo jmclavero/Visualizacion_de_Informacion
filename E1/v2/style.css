@@ -149,12 +149,20 @@ body.intro-activa {
   line-height: 1.5;
 }
 
+.bebes-visual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(14px, 3vw, 44px);
+  margin: 0 auto clamp(8px, 1.6vh, 18px);
+}
+
 .bebes-grid {
   display: grid;
   grid-template-columns: repeat(10, 1fr);
   gap: clamp(3px, 0.6vh, 6px);
-  width: min(560px, 86vw, 50vh);
-  margin: 0 auto clamp(8px, 1.6vh, 18px);
+  width: min(460px, 50vw, 42vh);
+  flex: 0 0 auto;
 }
 
 .bebe {
@@ -173,53 +181,60 @@ body.intro-activa {
   color: var(--bebe-tv);
 }
 
-.bebes-leyenda {
-  display: flex;
-  flex-wrap: wrap;
-  gap: clamp(6px, 1.1vh, 12px);
-  justify-content: center;
-  align-items: stretch;
-}
-
-.leyenda-item {
-  display: flex;
-  align-items: center;
-  gap: clamp(7px, 1.2vw, 12px);
-  max-width: 300px;
-  padding: clamp(5px, 0.9vh, 10px) clamp(10px, 1.6vw, 16px);
-  border-radius: 14px;
-  border: 1.5px solid var(--border);
-  background: var(--surface-1);
-  text-align: left;
-}
-
-.leyenda-icono {
+/* Las dos figuras grandes que flanquean la grilla: son la leyenda, pero
+   hechas protagonistas (mismo lenguaje visual que los iconos de la
+   grilla, a escala mucho mayor) para que no quede duda de qué codifica
+   cada color. */
+.leyenda-lateral {
   flex: 0 0 auto;
-  width: clamp(20px, 2.6vh, 28px);
-  height: clamp(20px, 2.6vh, 28px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(4px, 1vh, 8px);
+  width: clamp(120px, 15vw, 196px);
+  text-align: center;
+  border-radius: 16px;
+  padding: clamp(6px, 1.2vh, 12px);
+  cursor: default;
 }
 
-.leyenda-tv .leyenda-icono {
+.leyenda-icono-grande {
+  flex: 0 0 auto;
+  width: clamp(64px, 12vh, 128px);
+  height: clamp(64px, 12vh, 128px);
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+.leyenda-icono-grande circle,
+.leyenda-icono-grande path {
+  fill: currentColor;
+}
+
+.leyenda-tv .leyenda-icono-grande {
   color: var(--bebe-tv);
 }
 
-.leyenda-gris .leyenda-icono {
+.leyenda-gris .leyenda-icono-grande {
   color: var(--bebe-gris);
 }
 
-.leyenda-icono circle,
-.leyenda-icono path {
-  fill: currentColor;
+/* Animación simple al pasar el cursor: la figura crece un poco, como
+   invitando a leer su descripción. */
+.leyenda-lateral:hover .leyenda-icono-grande,
+.leyenda-lateral:focus-visible .leyenda-icono-grande {
+  transform: scale(1.12) translateY(-4px);
+  filter: brightness(0.92);
 }
 
 .leyenda-texto {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  align-items: center;
+  gap: 2px;
 }
 
 .leyenda-num {
-  font-size: clamp(1rem, min(2vw, 2.3vh), 1.3rem);
+  font-size: clamp(1.25rem, min(2.4vw, 2.9vh), 1.7rem);
   font-weight: 800;
   line-height: 1.1;
 }
@@ -233,9 +248,37 @@ body.intro-activa {
 }
 
 .leyenda-desc {
-  font-size: clamp(0.72rem, min(1.15vw, 1.5vh), 0.85rem);
+  margin: 0;
+  font-size: clamp(0.76rem, min(1.2vw, 1.5vh), 0.88rem);
   color: var(--text-secondary);
-  line-height: 1.35;
+  line-height: 1.4;
+}
+
+@media (max-width: 860px) {
+  .bebes-visual {
+    flex-direction: column;
+  }
+
+  .leyenda-lateral {
+    flex-direction: row;
+    width: 100%;
+    max-width: 440px;
+    text-align: left;
+    gap: clamp(10px, 2vw, 16px);
+  }
+
+  .leyenda-icono-grande {
+    width: clamp(48px, 9vh, 72px);
+    height: clamp(48px, 9vh, 72px);
+  }
+
+  .leyenda-texto {
+    align-items: flex-start;
+  }
+
+  .leyenda-desc {
+    text-align: left;
+  }
 }
 
 .bebes-nota {
