@@ -144,7 +144,7 @@ body.intro-activa {
 .overview-subtitulo {
   margin: 0 auto clamp(8px, 1.6vh, 18px);
   max-width: 62ch;
-  font-size: clamp(0.88rem, min(1.6vw, 1.9vh), 1.05rem);
+  font-size: clamp(1rem, min(1.9vw, 2.3vh), 1.2rem);
   color: var(--text-secondary);
   line-height: 1.5;
 }
@@ -285,8 +285,8 @@ body.intro-activa {
 .bebes-nota {
   margin: clamp(6px, 1.1vh, 14px) auto 0;
   max-width: 62ch;
-  font-size: clamp(0.7rem, min(1.1vw, 1.4vh), 0.82rem);
-  color: var(--text-muted);
+  font-size: clamp(0.85rem, min(1.4vw, 1.8vh), 1rem);
+  color: var(--text-secondary);
   line-height: 1.45;
 }
 
@@ -349,15 +349,25 @@ body.intro-activa {
 .swarm-subtitulo {
   margin: 0 auto clamp(8px, 2vh, 18px);
   max-width: 68ch;
-  font-size: clamp(0.78rem, min(1.3vw, 1.9vh), 0.95rem);
+  font-size: clamp(0.92rem, min(1.6vw, 2.2vh), 1.1rem);
   color: var(--text-secondary);
   line-height: 1.55;
 }
 
 .swarm-leyenda-ayuda {
-  margin: 0 0 clamp(6px, 1.4vh, 12px);
-  color: var(--text-muted);
-  font-size: clamp(0.7rem, min(1.1vw, 1.7vh), 0.85rem);
+  margin: 0 auto clamp(8px, 1.6vh, 14px);
+  max-width: 72ch;
+  padding: clamp(6px, 1.2vh, 10px) 14px;
+  border-radius: 10px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: clamp(0.88rem, min(1.4vw, 2vh), 1rem);
+  line-height: 1.5;
+}
+
+.swarm-leyenda-ayuda strong {
+  color: var(--text-primary);
 }
 
 .swarm-leyenda {
@@ -375,8 +385,9 @@ body.intro-activa {
   align-items: center;
   gap: 7px;
   padding: clamp(6px, 1.4vh, 9px) clamp(13px, 1.9vw, 19px);
-  border: none;
+  border: 2px solid var(--color-grupo);
   border-radius: 10px;
+  background: var(--color-grupo);
   color: #fff;
   font: inherit;
   font-size: inherit;
@@ -397,10 +408,18 @@ body.intro-activa {
   transform: translateY(0);
 }
 
+/* Apagado: solo el contorno del color del grupo, para que se lea como un
+   botón disponible (y no como uno deshabilitado) cuando el gráfico parte
+   vacío. */
 .swarm-leyenda .item.inactivo {
-  opacity: 0.3;
-  filter: grayscale(0.4);
+  background: var(--surface-1);
+  color: var(--text-primary);
   box-shadow: none;
+}
+
+.swarm-leyenda .item.inactivo:hover {
+  filter: none;
+  background: var(--page);
 }
 
 #grafico-swarm {
@@ -417,8 +436,8 @@ body.intro-activa {
 }
 
 #grafico-swarm .eje text {
-  fill: var(--text-muted);
-  font-size: 11px;
+  fill: var(--text-secondary);
+  font-size: 13px;
 }
 
 #grafico-swarm .eje path,
@@ -428,6 +447,11 @@ body.intro-activa {
 
 #grafico-swarm .grilla line {
   stroke: var(--gridline);
+}
+
+#grafico-swarm .mensaje-vacio {
+  fill: var(--text-muted);
+  font-size: 16px;
 }
 
 #grafico-swarm .titulo-eje {
@@ -461,7 +485,7 @@ body.intro-activa {
   background: var(--surface-1);
   box-shadow: 0 6px 18px rgba(11, 11, 11, 0.15);
   color: var(--text-secondary);
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   line-height: 1.4;
 }
 
@@ -547,12 +571,12 @@ body.intro-activa {
 
 .swarm-detalle #swarm-detalle-causa {
   margin: 12px 0 4px;
-  font-size: 0.95rem;
+  font-size: 1.05rem;
 }
 
 .swarm-detalle #swarm-detalle-meta {
-  color: var(--text-muted);
-  font-size: 0.95rem;
+  color: var(--text-secondary);
+  font-size: 1.05rem;
   margin: 0 0 18px;
 }
 

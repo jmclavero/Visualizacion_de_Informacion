@@ -375,7 +375,13 @@ let capaSwarm = null; // <g> contenedor del dibujo (ya no se transforma)
 let nodoActivo = null;
 let timerDetalleSwarm = null;
 let zoomSwarm = { k: 1, tx: 0, ty: 0 }; // transform actual de #swarm-zoom
-let gruposActivos = new Set(ORDEN_SWARM); // filtro de la leyenda (multiselección)
+// Grupos visibles en el gráfico. Parte vacío: cada botón de la leyenda
+// agrega (o quita) su grupo, para que el lector construya la comparación
+// categoría por categoría en vez de recibir los 203 puntos de golpe.
+let gruposActivos = new Set();
+let nodosSwarm = null; // layout fijo de los 203 puntos (se calcula una vez)
+let capaPuntosSwarm = null; // <g> donde viven los círculos
+let mensajeVacioSwarm = null; // texto que se muestra con el gráfico vacío
 
 function actualizarLeyendaSwarm() {
   document.querySelectorAll("#swarm-leyenda .item").forEach((item) => {
@@ -388,10 +394,9 @@ function actualizarLeyendaSwarm() {
 function alternarGrupoSwarm(grupo) {
   if (gruposActivos.has(grupo)) gruposActivos.delete(grupo);
   else gruposActivos.add(grupo);
-  // No permitir quedar en cero: se vuelve a mostrar todo.
-  if (gruposActivos.size === 0) gruposActivos = new Set(ORDEN_SWARM);
   volverSwarm();
-  dibujarSwarm();
+  actualizarLeyendaSwarm();
+  actualizarPuntosSwarm();
 }
 
 function construirLeyendaSwarm() {
@@ -404,7 +409,7 @@ function construirLeyendaSwarm() {
     item.className = "item";
     item.dataset.grupo = grupo;
     item.textContent = grupo;
-    item.style.background = COLOR_SWARM[grupo];
+    item.style.setProperty("--color-grupo", COLOR_SWARM[grupo]);
     item.addEventListener("click", () => alternarGrupoSwarm(grupo));
     cont.appendChild(item);
   });
@@ -583,31 +588,17 @@ function dibujarSwarm() {
 
   construirLeyendaSwarm();
 
-  // Solo los grupos activos (filtro de la leyenda); si el filtro deja menos
-  // categorías, se reparten en todo el ancho y los puntos se dibujan más
-  // grandes para verlos con más detalle.
-  const activos = ORDEN_SWARM.filter((g) => gruposActivos.has(g));
-  const dominio = activos.length > 0 ? activos : ORDEN_SWARM;
-  const radio =
-    dominio.length >= ORDEN_SWARM.length
-      ? RADIO_SWARM
-      : Math.min(14, RADIO_SWARM * Math.sqrt(ORDEN_SWARM.length / dominio.length));
-
-  const nodos = DATOS.booms
-    .map((b) => ({
-      boom: b,
-      grupo: GRUPO_SWARM[b.categoria] || "Sin identificar",
-      veces: b.veces,
-    }))
-    .filter((n) => dominio.includes(n.grupo));
-
-  const W = 820;
-  const H = 430;
+  // Escalas fijas: el eje X siempre reserva lugar para las 5 categorías y el
+  // eje Y siempre va de 3x a 300x, aunque el gráfico esté vacío o con un solo
+  // grupo. Así, al agregar o quitar grupos nada se mueve ni se reescala, y
+  // las posiciones se pueden comparar entre una selección y otra.
+  const W = ANCHO_SWARM;
+  const H = ALTO_SWARM;
   const margen = { t: 18, r: 24, b: 46, l: 58 };
 
   const x = d3
     .scaleBand()
-    .domain(dominio)
+    .domain(ORDEN_SWARM)
     .range([margen.l, W - margen.r])
     .paddingInner(0.35)
     .paddingOuter(0.2);
@@ -618,6 +609,84 @@ function dibujarSwarm() {
     .scaleLog()
     .domain([3, 300])
     .range([H - margen.b, margen.t]);
+
+  // El layout de los 203 puntos se calcula una sola vez con todos ellos;
+  // filtrar solo decide cuáles se dibujan, así cada punto aparece siempre
+  // en el mismo lugar.
+  if (!nodosSwarm) nodosSwarm = calcularLayoutSwarm(centroX, y, margen, W, H);
+
+  cont.innerHTML = "";
+  svgSwarm = d3
+    .select(cont)
+    .append("svg")
+    .attr("viewBox", `0 0 ${W} ${H}`)
+    .attr("preserveAspectRatio", "xMidYMid meet");
+
+  capaSwarm = svgSwarm.append("g").attr("class", "capa");
+
+  // Grilla horizontal + eje y.
+  const yTicks = [4, 6, 10, 20, 40, 80, 160, 300];
+  const grilla = capaSwarm.append("g").attr("class", "grilla");
+  grilla
+    .selectAll("line")
+    .data(yTicks)
+    .join("line")
+    .attr("x1", margen.l)
+    .attr("x2", W - margen.r)
+    .attr("y1", (v) => y(v))
+    .attr("y2", (v) => y(v));
+
+  const ejeY = capaSwarm.append("g").attr("class", "eje");
+  ejeY
+    .selectAll("text")
+    .data(yTicks)
+    .join("text")
+    .attr("x", margen.l - 8)
+    .attr("y", (v) => y(v))
+    .attr("text-anchor", "end")
+    .attr("dominant-baseline", "middle")
+    .text((v) => `${v}x`);
+
+  capaSwarm
+    .append("text")
+    .attr("class", "titulo-eje")
+    .attr("transform", `translate(14 ${(H - margen.b + margen.t) / 2}) rotate(-90)`)
+    .attr("text-anchor", "middle")
+    .text("Veces sobre el promedio previo");
+
+  // Eje x (categorías): siempre las 5, aunque su grupo no esté activo.
+  const ejeX = capaSwarm.append("g").attr("class", "eje");
+  ejeX
+    .selectAll("text")
+    .data(ORDEN_SWARM)
+    .join("text")
+    .attr("x", (g) => centroX(g))
+    .attr("y", H - margen.b + 26)
+    .attr("text-anchor", "middle")
+    .text((g) => g);
+
+  // Mensaje del estado vacío, centrado en el área del gráfico.
+  mensajeVacioSwarm = capaSwarm
+    .append("text")
+    .attr("class", "mensaje-vacio")
+    .attr("x", (margen.l + W - margen.r) / 2)
+    .attr("y", (margen.t + H - margen.b) / 2)
+    .attr("text-anchor", "middle")
+    .attr("dominant-baseline", "middle")
+    .text("Elige una categoría arriba para ver sus alzas");
+
+  capaPuntosSwarm = capaSwarm.append("g");
+  actualizarPuntosSwarm();
+}
+
+function calcularLayoutSwarm(centroX, y, margen, W, H) {
+  const radio = RADIO_SWARM;
+  const nodos = DATOS.booms.map((b, i) => ({
+    id: i,
+    boom: b,
+    grupo: GRUPO_SWARM[b.categoria] || "Sin identificar",
+    veces: b.veces,
+  }));
 
   // Semilla determinista: mismo layout en cada carga.
   let semilla = 1;
@@ -647,74 +716,41 @@ function dibujarSwarm() {
       n.y = Math.max(margen.t + radio, Math.min(n.y, H - margen.b - radio));
     });
   }
+  return nodos;
+}
 
-  cont.innerHTML = "";
-  svgSwarm = d3
-    .select(cont)
-    .append("svg")
-    .attr("viewBox", `0 0 ${W} ${H}`)
-    .attr("preserveAspectRatio", "xMidYMid meet");
+// Dibuja solo los puntos de los grupos activos: los que entran crecen desde
+// radio 0 y los que salen se encogen, para que se note qué grupo apareció.
+function actualizarPuntosSwarm() {
+  if (!capaPuntosSwarm || !nodosSwarm) return;
+  const visibles = nodosSwarm.filter((n) => gruposActivos.has(n.grupo));
 
-  // Capa que se transforma al hacer zoom (todo el gráfico crece junto).
-  capaSwarm = svgSwarm.append("g").attr("class", "capa");
+  mensajeVacioSwarm.style("display", visibles.length === 0 ? null : "none");
 
-  // Grilla horizontal + eje y.
-  const yTicks = [4, 6, 10, 20, 40, 80, 160, 300].filter((v) => v <= 300);
-  const grilla = capaSwarm.append("g").attr("class", "grilla");
-  grilla
-    .selectAll("line")
-    .data(yTicks)
-    .join("line")
-    .attr("x1", margen.l)
-    .attr("x2", W - margen.r)
-    .attr("y1", (v) => y(v))
-    .attr("y2", (v) => y(v));
-
-  const ejeY = capaSwarm.append("g").attr("class", "eje");
-  ejeY
-    .selectAll("text")
-    .data(yTicks)
-    .join("text")
-    .attr("x", margen.l - 8)
-    .attr("y", (v) => y(v))
-    .attr("text-anchor", "end")
-    .attr("dominant-baseline", "middle")
-    .text((v) => `${v}x`);
-
-  capaSwarm
-    .append("text")
-    .attr("class", "titulo-eje")
-    .attr("transform", `translate(14 ${(H - margen.b + margen.t) / 2}) rotate(-90)`)
-    .attr("text-anchor", "middle")
-    .text("Veces sobre el promedio previo");
-
-  // Eje x (categorías).
-  const ejeX = capaSwarm.append("g").attr("class", "eje");
-  ejeX
-    .selectAll("text")
-    .data(dominio)
-    .join("text")
-    .attr("x", (g) => centroX(g))
-    .attr("y", H - margen.b + 26)
-    .attr("text-anchor", "middle")
-    .text((g) => g);
-
-  // Puntos.
-  capaSwarm
-    .append("g")
+  capaPuntosSwarm
     .selectAll("circle")
-    .data(nodos)
-    .join("circle")
-    .attr("class", "punto")
-    .attr("cx", (d) => d.x)
-    .attr("cy", (d) => d.y)
-    .attr("r", radio)
-    .attr("fill", (d) => COLOR_SWARM[d.grupo])
-    .attr("fill-opacity", 0.85)
-    .on("mouseover", (ev, d) => mostrarTooltipSwarm(ev, d))
-    .on("mousemove", (ev) => posicionarTooltipSwarm(ev))
-    .on("mouseout", () => ocultarTooltipSwarm())
-    .on("click", (ev, d) => seleccionarPuntoSwarm(ev, d));
+    .data(visibles, (d) => d.id)
+    .join(
+      (enter) =>
+        enter
+          .append("circle")
+          .attr("class", "punto")
+          .attr("cx", (d) => d.x)
+          .attr("cy", (d) => d.y)
+          .attr("r", 0)
+          .attr("fill", (d) => COLOR_SWARM[d.grupo])
+          .attr("fill-opacity", 0.85)
+          .on("mouseover", (ev, d) => mostrarTooltipSwarm(ev, d))
+          .on("mousemove", (ev) => posicionarTooltipSwarm(ev))
+          .on("mouseout", () => ocultarTooltipSwarm())
+          .on("click", (ev, d) => seleccionarPuntoSwarm(ev, d))
+          .call((e) => e.transition().duration(400).attr("r", RADIO_SWARM)),
+      (update) => update,
+      (exit) =>
+        exit
+          .style("pointer-events", "none")
+          .call((e) => e.transition().duration(250).attr("r", 0).remove())
+    );
 }
 
 function initSwarm() {
