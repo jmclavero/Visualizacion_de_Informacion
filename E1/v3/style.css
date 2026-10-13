@@ -17,8 +17,6 @@
 
   --bebe-tv: #a8d8ea;
   --bebe-gris: #c3c2b7;
-  --bebe-tv-hover: #1fe6cf;
-  --bebe-gris-hover: #2b2a25;
 }
 
 * {
@@ -197,14 +195,12 @@ body.intro-activa {
   text-align: center;
   border-radius: 16px;
   padding: clamp(8px, 1.6vh, 16px);
-  cursor: default;
 }
 
 .leyenda-icono-grande {
   flex: 0 0 auto;
   width: clamp(80px, 15vh, 160px);
   height: clamp(80px, 15vh, 160px);
-  transition: transform 0.2s ease, color 0.2s ease;
 }
 
 .leyenda-icono-grande circle,
@@ -220,26 +216,6 @@ body.intro-activa {
   color: var(--bebe-gris);
 }
 
-/* Al pasar el cursor por la figura o por su texto (ambos viven dentro de
-   .leyenda-lateral, así que cualquiera de los dos dispara el :hover del
-   contenedor): la figura crece y cambia a un color de acento — turquesa
-   neón para el lado TV, un gris muy oscuro para el otro lado — en vez de
-   solo oscurecerse un poco, para que el realce sea inconfundible. */
-.leyenda-lateral:hover .leyenda-icono-grande,
-.leyenda-lateral:focus-visible .leyenda-icono-grande {
-  transform: scale(1.16) translateY(-5px);
-}
-
-.leyenda-tv:hover .leyenda-icono-grande,
-.leyenda-tv:focus-visible .leyenda-icono-grande {
-  color: var(--bebe-tv-hover);
-}
-
-.leyenda-gris:hover .leyenda-icono-grande,
-.leyenda-gris:focus-visible .leyenda-icono-grande {
-  color: var(--bebe-gris-hover);
-}
-
 .leyenda-texto {
   display: flex;
   flex-direction: column;
@@ -251,7 +227,6 @@ body.intro-activa {
   font-size: clamp(1.5rem, min(2.8vw, 3.4vh), 2.1rem);
   font-weight: 800;
   line-height: 1.1;
-  transition: transform 0.2s ease;
 }
 
 .leyenda-tv .leyenda-num {
@@ -262,31 +237,21 @@ body.intro-activa {
   color: var(--text-primary);
 }
 
+/* Sin hover: el texto queda siempre en su versión destacada (azul para
+   el lado TV, negro para el otro, en seminegrita), porque el gris claro
+   anterior se leía con dificultad y nada invitaba a pasar el cursor. */
 .leyenda-desc {
   margin: 0;
   font-size: clamp(1rem, min(1.6vw, 2vh), 1.15rem);
-  color: var(--text-secondary);
+  font-weight: 600;
   line-height: 1.45;
-  transition: transform 0.2s ease, color 0.2s ease, font-weight 0.2s ease;
 }
 
-/* El número y el texto también crecen y se resaltan en negrita al pasar
-   el cursor: azul para el lado TV, negro para el otro. */
-.leyenda-lateral:hover .leyenda-num,
-.leyenda-lateral:hover .leyenda-desc,
-.leyenda-lateral:focus-visible .leyenda-num,
-.leyenda-lateral:focus-visible .leyenda-desc {
-  transform: scale(1.07);
-  font-weight: 700;
-}
-
-.leyenda-tv:hover .leyenda-desc,
-.leyenda-tv:focus-visible .leyenda-desc {
+.leyenda-tv .leyenda-desc {
   color: var(--cat-teleserie);
 }
 
-.leyenda-gris:hover .leyenda-desc,
-.leyenda-gris:focus-visible .leyenda-desc {
+.leyenda-gris .leyenda-desc {
   color: var(--text-primary);
 }
 
