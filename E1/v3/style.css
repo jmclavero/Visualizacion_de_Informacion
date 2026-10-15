@@ -15,7 +15,7 @@
   --cat-no-tv: #9467bd;
   --cat-sin-identificar: #898781;
 
-  --bebe-tv: #a8d8ea;
+  --bebe-tv: var(--cat-teleserie);
   --bebe-gris: #c3c2b7;
 }
 
@@ -39,7 +39,6 @@ body {
   align-items: center;
   justify-content: center;
   background: var(--page);
-  cursor: pointer;
   overflow: hidden;
   padding: clamp(16px, 6vh, 64px) 20px;
   will-change: transform;
@@ -62,21 +61,6 @@ body {
   color: var(--text-primary);
 }
 
-.portada-flecha {
-  position: absolute;
-  bottom: clamp(16px, 5vh, 40px);
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: clamp(1.8rem, 4vh, 2.5rem);
-  color: var(--text-secondary);
-  animation: portada-rebote 1.6s ease-in-out infinite;
-}
-
-@keyframes portada-rebote {
-  0%, 100% { transform: translate(-50%, 0); }
-  50% { transform: translate(-50%, 12px); }
-}
-
 body.intro-activa {
   overflow: hidden;
 }
@@ -90,7 +74,6 @@ body.intro-activa {
   align-items: center;
   justify-content: safe center;
   background: var(--page);
-  cursor: pointer;
   overflow-x: hidden;
   overflow-y: auto;
   will-change: transform;
@@ -109,19 +92,6 @@ body.intro-activa {
   max-height: 100%;
   padding: clamp(56px, 7vh, 64px) 24px clamp(16px, 4vh, 36px);
   text-align: center;
-}
-
-.overview-flecha {
-  margin-top: clamp(8px, 1.6vh, 18px);
-  font-size: clamp(1.4rem, 3vh, 2rem);
-  color: var(--text-secondary);
-  text-align: center;
-  animation: overview-rebote 1.6s ease-in-out infinite;
-}
-
-@keyframes overview-rebote {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(12px); }
 }
 
 .overview-eyebrow {
@@ -600,8 +570,8 @@ body.intro-activa {
   padding: clamp(8px, 1.8vh, 12px) clamp(16px, 2.6vw, 24px);
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: var(--surface-1);
-  color: var(--text-primary);
+  background: var(--cat-teleserie);
+  color: var(--page);
   font: inherit;
   font-size: clamp(0.85rem, min(1.2vw, 2vh), 1rem);
   font-weight: 600;
@@ -611,12 +581,38 @@ body.intro-activa {
 }
 
 .slide-atras:hover {
-  background: var(--page);
+  background: #3634e5;
   transform: scale(1.03);
 }
 
 .slide-atras[hidden] {
   display: none;
+}
+
+.slide-continuar {
+  position: absolute;
+  bottom: clamp(16px, 4vh, 32px);
+  right: clamp(16px, 3vw, 28px);
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: clamp(8px, 1.8vh, 12px) clamp(16px, 2.6vw, 24px);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--cat-teleserie);
+  color: var(--page);
+  font: inherit;
+  font-size: clamp(0.85rem, min(1.2vw, 2vh), 1rem);
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(11, 11, 11, 0.1);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.slide-continuar:hover {
+  background: #3634e5;
+  transform: scale(1.03);
 }
 
 .swarm-volver {

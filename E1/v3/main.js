@@ -83,6 +83,14 @@ function dibujarDetalle(b, contenedorId, color) {
 const ESCALA_PENTATONICA = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24, 26, 28];
 const NOTA_RAIZ_MIDI = 52; // E3: grave pero audible en parlantes de notebook
 
+const ARCHIVOS_SONIDO = {
+  "Teleseries": "sfx/applause.mp3",
+  "Música / Viña": "sfx/saxophone.mp3",
+  "Otras causas televisivas": "sfx/news.mp3",
+  "No televisivas": "sfx/people.mp3",   
+  "Sin identificar": "sfx/no-classification.mp3",    
+};
+
 function notaDesdeT(t) {
   const indice = Math.round(Math.max(0, Math.min(1, t)) * (ESCALA_PENTATONICA.length - 1));
   const midi = NOTA_RAIZ_MIDI + ESCALA_PENTATONICA[indice];
@@ -92,69 +100,47 @@ function notaDesdeT(t) {
 function tDesdeVeces(veces) {
   // "veces sobre lo previo" va de 4 (umbral de boom) a ~187 (Yesenia); log
   // porque la mayoría de los booms son chicos y unos pocos son enormes.
-  return Math.log(veces / 4) / Math.log(187 / 4);
+  const t = Math.log(veces / 4) / Math.log(187 / 4);
+  return Math.max(0, Math.min(1, t));
 }
 
 let voces = null;
+let cargaPromesa = null;
 
 function asegurarAudio() {
   return Tone.start().then(() => {
-    if (!voces) {
-      voces = {
-        // Teleserie: tono sostenido y cálido, como una nota tenida de cuerdas.
-        "Teleserie": new Tone.Synth({
-          oscillator: { type: "triangle" },
-          envelope: { attack: 0.08, decay: 0.25, sustain: 0.5, release: 1.0 },
-          volume: -8,
-        }).toDestination(),
-        // Música / Viña: pulsado, como una guitarra o arpa.
-        "Música / Viña": new Tone.PluckSynth({
-          attackNoise: 1,
-          dampening: 3500,
-          resonance: 0.8,
-          volume: -4,
-        }).toDestination(),
-        // Otra causa: timbre tipo campana/electrónico, claramente distinto.
-        "Otra causa": new Tone.FMSynth({ volume: -10 }).toDestination(),
-      };
+    if (!cargaPromesa) {
+      voces = new Tone.Players(ARCHIVOS_SONIDO).toDestination();
+      // Tone.loaded() resuelve cuando todos los buffers terminaron de cargar.
+      cargaPromesa = Tone.loaded();
     }
+    return cargaPromesa;
   });
 }
 
-// Tone.js exige que cada ataque en un mismo instrumento tenga un horario
-// estrictamente mayor al anterior. Si se hace doble clic rápido en dos
-// booms de la misma categoría, el segundo podría caer en el mismo instante
-// que el primero, así que se fuerza un mínimo de separación.
-const ultimoInicioPorCategoria = {};
-
-// Los booms "Sin identificar" no tienen timbre propio: se usa el de "Otra
-// causa" para que el earcon no falle.
+// El sonido se elige por el grupo del swarm, no por categoria_viz.
 function timbreDe(b) {
-  return b.categoria_viz === "Sin identificar" ? "Otra causa" : b.categoria_viz;
+  return GRUPO_SWARM[b.categoria] || "Sin identificar";
 }
 
 function reproducirEarcon(b) {
   if (!voces) return;
   const clave = timbreDe(b);
-  const synth = voces[clave];
-  if (!synth) return;
-  const nota = notaDesdeT(tDesdeVeces(b.veces));
-  const duracion = Math.min(1.0, 0.2 + b.extra / 2000);
-  const anterior = ultimoInicioPorCategoria[clave] || 0;
-  const inicio = Math.max(Tone.now(), anterior + 0.02);
-  synth.triggerAttackRelease(nota, duracion, inicio);
-  ultimoInicioPorCategoria[clave] = inicio;
-}
+  if (!voces.has(clave)) return;
+  voces.stopAll();
+  const t = tDesdeVeces(b.veces);
+  const player = voces.player(clave);
 
-function decirBoom(b) {
-  if (!("speechSynthesis" in window)) return;
-  speechSynthesis.cancel();
-  const causa = b.causa || "sin causa identificada";
-  const texto = `${b.nombre}. De ${Math.round(b.prev)} a ${b.n} inscripciones en ${b.anio}. ${causa}.`;
-  const u = new SpeechSynthesisUtterance(texto);
-  u.lang = "es-CL";
-  u.rate = 1.05;
-  speechSynthesis.speak(u);
+  // La magnitud del boom se traduce en volumen (de -18 dB a 0 dB)...
+  player.volume.value = -18 + 10 * t;
+  // ...y opcionalmente en velocidad de reproducción (0.85x a 1.25x),
+  // lo que también cambia un poco la altura, como hacían las notas antes.
+  player.playbackRate = 0.85 + 0.4 * t;
+
+  // Si el mismo sonido ya está sonando (dobles clics rápidos), se corta
+  // y se reinicia en vez de apilarse o lanzar error.
+  player.stop();
+  player.start();
 }
 
 // ---------- Navegación entre slides ----------
@@ -219,12 +205,11 @@ function volverAtras() {
 
 // ---------- Portada de presentación ----------
 //
-// Pantalla de título. Un clic en cualquier parte avanza a la slide de bebés.
+// Pantalla de título. El botón "Continuar" avanza a la slide de bebés.
 
 function initPortada() {
-  const portada = document.getElementById("portada");
-  if (!portada) return;
-  portada.addEventListener("click", avanzarPortada);
+  const btn = document.getElementById("portada-continuar");
+  if (btn) btn.addEventListener("click", avanzarPortada);
 }
 
 initPortada();
@@ -245,7 +230,7 @@ const SVG_BEBE = `
       stroke-width="1.3" stroke-linecap="round" />
   </svg>`;
 
-const RETRASO_ENTRE_BEBES = 30; // ms entre una figura y la siguiente
+const RETRASO_ENTRE_BEBES = 50; // ms entre una figura y la siguiente
 
 // Categorías (campo "categoria", no "categoria_viz") que cuentan como
 // televisión. "categoria_viz" agrupa series/animación y TV en vivo dentro
@@ -261,17 +246,11 @@ let totalCeleste = 0;
 let pendienteAnimacion = false;
 
 function initOverview() {
-  const overview = document.getElementById("overview");
-  if (!overview) return;
-  overview.addEventListener("click", avanzarBebes);
-
   const atras = document.getElementById("bebes-atras");
-  if (atras) {
-    atras.addEventListener("click", (ev) => {
-      ev.stopPropagation();
-      volverAtras();
-    });
-  }
+  if (atras) atras.addEventListener("click", volverAtras);
+
+  const continuar = document.getElementById("bebes-continuar");
+  if (continuar) continuar.addEventListener("click", avanzarBebes);
 }
 
 function rellenarBebes() {
@@ -320,6 +299,10 @@ function animarBebes() {
 
   pendienteAnimacion = false;
   for (let i = 0; i < totalCeleste && i < hijos.length; i++) {
+    const sonido = new Audio('sfx/baby.mp3');
+    sonido.volume = 0.15;
+    sonido.play();
+    
     const el = hijos[i];
     setTimeout(() => el.classList.add("bebe-tv"), i * RETRASO_ENTRE_BEBES);
   }
@@ -463,7 +446,7 @@ function llenarDetalleSwarm(b) {
 
   const causaEl = document.getElementById("swarm-detalle-causa");
   causaEl.textContent = b.causa
-    ? `Coincide con: ${b.causa}. (Confianza: ${b.confianza.toLowerCase()}; coincidir en el tiempo no prueba causa.)`
+    ? `Coincide con: ${b.causa}.`
     : "Sin causa identificada.";
 
   const metaEl = document.getElementById("swarm-detalle-meta");
