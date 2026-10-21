@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>La influencia de la televisión en los nombres de los chilenos</title>
+<link rel="stylesheet" href="style.css" />
+<script defer src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/tone@15.0.4/build/Tone.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+</head>
+<body class="intro-activa">
+<div id="overview">
+  <div class="overview-contenido">
+    <h2 class="overview-titulo">
+      ¿Cómo la televisión ha influido en los nombres de los bebés chilenos?
+    </h2>
+    <p class="overview-subtitulo">
+      Basado en alzas significativas de nombres chilenos entre 1920 y 2021.
+    </p>
+    <div class="bebes-visual">
+      <div class="leyenda-lateral leyenda-tv">
+        <svg class="leyenda-icono-grande" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="7.6" r="4.9" />
+          <path d="M12 12.4c-4.1 0-6.9 2.5-6.9 6 0 1.3 1 2.3 2.3 2.3h9.2c1.3 0 2.3-1 2.3-2.3 0-3.5-2.8-6-6.9-6z" />
+        </svg>
+        <div class="leyenda-texto">
+          <strong class="leyenda-num" id="bebe-tv-conteo">—</strong>
+          <p class="leyenda-desc">Nombres con causa televisiva identificada</p>
+        </div>
+      </div>
+      <div class="bebes-grid" id="bebes-grid" aria-hidden="true"></div>
+      <script>
+        // Pre-renderiza la grilla en gris de inmediato, sin esperar a las
+        // librerías ni al JSON (así la proporción aparece al instante).
+        (function () {
+          var grid = document.getElementById("bebes-grid");
+          if (!grid) return;
+          var svg = '<svg viewBox="0 0 24 24" role="img"><circle cx="12" cy="7.6" r="4.9"/><path d="M12 12.4c-4.1 0-6.9 2.5-6.9 6 0 1.3 1 2.3 2.3 2.3h9.2c1.3 0 2.3-1 2.3-2.3 0-3.5-2.8-6-6.9-6z"/><path d="M12 2.1c1 0 1.9.6 2.3 1.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>';
+          for (var i = 0; i < 100; i++) {
+            var d = document.createElement("div");
+            d.className = "bebe";
+            d.innerHTML = svg;
+            grid.appendChild(d);
+          }
+        })();
+      </script>
+      <div class="leyenda-lateral leyenda-gris">
+        <svg class="leyenda-icono-grande" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="7.6" r="4.9" />
+          <path d="M12 12.4c-4.1 0-6.9 2.5-6.9 6 0 1.3 1 2.3 2.3 2.3h9.2c1.3 0 2.3-1 2.3-2.3 0-3.5-2.8-6-6.9-6z" />
+        </svg>
+        <div class="leyenda-texto">
+          <strong class="leyenda-num" id="bebe-gris-conteo">—</strong>
+          <p class="leyenda-desc">Nombres de alzas no televisivas</p>
+        </div>
+      </div>
+    </div>
+    <p class="bebes-nota">
+      De las 203 alzas significativa, 144 no
+      tienen causa identificada.
+    </p>
+  </div>
+  <button type="button" class="slide-continuar" id="bebes-continuar">
+    Ver detalle <span aria-hidden="true">→</span>
+  </button>
+</div>
+
+<div id="swarm">
+  <div id="swarm-zoom">
+    <div class="swarm-contenido">
+      <h2 class="swarm-titulo">Alzas categorizadas y su impacto</h2>
+      <p class="swarm-subtitulo">
+        Cada punto es una de las 203 alzas significativas detectadas entre 1920
+        y 2021, según cuánto se disparó (veces sobre el promedio de los 3 años
+        previos) y su causa.
+      </p>
+      <p class="swarm-leyenda-ayuda">
+        <strong>Cómo usarlo:</strong> activa una o más categorías con los
+        botones para que aparezcan sus alzas · pasa el cursor sobre un punto
+        para ver el nombre · haz clic en él para ver y escuchar su historia.
+      </p>
+      <div class="swarm-leyenda" id="swarm-leyenda"></div>
+      <div id="grafico-swarm"></div>
+    </div>
+  </div>
+  <div class="swarm-tooltip" id="swarm-tooltip" hidden></div>
+  <div class="swarm-eje-y" id="swarm-eje-y" hidden></div>
+  <aside class="swarm-detalle" id="swarm-detalle" hidden>
+    <button type="button" class="swarm-detalle-cerrar" id="swarm-detalle-cerrar" aria-label="Cerrar detalle">×</button>
+    <div class="detalle-titulo">
+      <h3 id="swarm-detalle-nombre">—</h3>
+      <span id="swarm-detalle-chip"></span>
+    </div>
+    <p id="swarm-detalle-causa"></p>
+    <p id="swarm-detalle-meta"></p>
+    <div id="swarm-grafico-detalle"></div>
+  </aside>
+  <button type="button" class="slide-atras" id="swarm-atras">
+    <span aria-hidden="true">←</span> Volver al overview
+  </button>
+  <button type="button" class="swarm-volver" id="swarm-volver" hidden>
+    <span aria-hidden="true">←</span> Volver
+  </button>
+</div>
+
+<script defer src="main.js"></script>
+</body>
+</html>
