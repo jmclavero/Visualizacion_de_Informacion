@@ -146,7 +146,11 @@ const AJUSTE_VOLUMEN = {
   "No televisivas": 4,
 };
 
-// Rango de pitch/velocidad para los sonidos sampleados (mp3).
+// Rangos de pitch/velocidad para los sonidos sampleados (mp3).
+// Teleseries usa un rango más contenido para no distorsionar el applause.
+const RANGOS_AUDIO = {
+  "Teleseries": { rateMin: 0.9, rateMax: 1.12, pitchMin: -2, pitchMax: 3 },
+};
 const RANGO_POR_DEFECTO = { rateMin: 0.9, rateMax: 1.35, pitchMin: -10, pitchMax: 7 };
 
 function reproducirEarcon(b) {
@@ -180,12 +184,9 @@ function reproducirEarcon(b) {
   const player = voces.player(clave);
   player.volume.value = volumen;
 
-  player.playbackRate =
-    RANGO_POR_DEFECTO.rateMin +
-    (RANGO_POR_DEFECTO.rateMax - RANGO_POR_DEFECTO.rateMin) * t;
-  pitchShift.pitch =
-    RANGO_POR_DEFECTO.pitchMin +
-    (RANGO_POR_DEFECTO.pitchMax - RANGO_POR_DEFECTO.pitchMin) * t;
+  const r = RANGOS_AUDIO[clave] || RANGO_POR_DEFECTO;
+  player.playbackRate = r.rateMin + (r.rateMax - r.rateMin) * t;
+  pitchShift.pitch = r.pitchMin + (r.pitchMax - r.pitchMin) * t;
 
   // Si el mismo sonido ya está sonando (dobles clics rápidos), se corta
   // y se reinicia en vez de apilarse o lanzar error.
