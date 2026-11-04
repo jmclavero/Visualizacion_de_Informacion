@@ -90,13 +90,21 @@
   <div class="swarm-eje-y" id="swarm-eje-y" hidden></div>
   <aside class="swarm-detalle" id="swarm-detalle" hidden>
     <button type="button" class="swarm-detalle-cerrar" id="swarm-detalle-cerrar" aria-label="Cerrar detalle">×</button>
-    <div class="detalle-titulo">
-      <h3 id="swarm-detalle-nombre">—</h3>
-      <span id="swarm-detalle-chip"></span>
+
+    <div class="detalle-izquierda">
+      <p class="detalle-categoria" id="swarm-detalle-categoria">—</p>
+      <div class="detalle-mini" id="swarm-detalle-mini"></div>
     </div>
-    <p id="swarm-detalle-causa"></p>
-    <p id="swarm-detalle-meta"></p>
-    <div id="swarm-grafico-detalle"></div>
+
+    <div class="detalle-derecha">
+      <p class="detalle-eyebrow">Gráfico detalle de nombre</p>
+      <div class="detalle-titulo">
+        <h3 id="swarm-detalle-nombre">—</h3>
+      </div>
+      <div id="swarm-grafico-detalle"></div>
+      <p id="swarm-detalle-causa"></p>
+      <p id="swarm-detalle-meta"></p>
+    </div>
   </aside>
   <button type="button" class="slide-atras" id="swarm-atras">
     <span aria-hidden="true">←</span> Volver al overview
