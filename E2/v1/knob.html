@@ -23,11 +23,13 @@
     .hint { margin: 0; max-width: 44ch; color: #52514e; line-height: 1.45; font-size: .92rem; }
     .lectura { font-size: 3.6rem; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
     .fila { display: flex; gap: 18px; font-size: 1rem; color: #52514e; }
+    .controles { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
     button {
       border: 0; border-radius: 999px; padding: 12px 22px; font: inherit;
       font-size: .95rem; font-weight: 700; cursor: pointer; color: #fff;
-      background: #52514e;
+      background: #2a78d6;
     }
+    button.secundario { background: #52514e; }
     .oculto { display: none; }
     .estado { margin: 0; color: #898781; font-size: .9rem; max-width: 44ch; }
     .diag {
@@ -73,8 +75,11 @@
       <span id="vueltas">0 vueltas</span>
     </div>
 
-    <button id="recalibrar" type="button">RECALIBRAR A 0°</button>
-    <button id="permiso" type="button" class="oculto">PEDIR PERMISO DE SENSORES</button>
+    <div class="controles">
+      <button id="recalibrar" type="button">RECALIBRAR A 0°</button>
+      <button id="invertir" type="button" class="secundario">INVERTIR GIRO</button>
+      <button id="permiso" type="button" class="oculto">PEDIR PERMISO DE SENSORES</button>
+    </div>
 
     <p class="estado" id="estado">Esperando sensores…</p>
     <p class="diag" id="diag">α — β — γ — · giro — °/s · gyro 0 · orient 0</p>
@@ -82,7 +87,12 @@
 
   <script>
     (function () {
-      var SENTIDO = -1;          // cambia a 1 si el giro queda invertido
+      // El giroscopio y la brújula tienen signos opuestos:
+      // - giroscopio: el giro horario da tasa negativa.
+      // - brújula: el giro horario aumenta alpha.
+      // Con estos valores, el giro horario suma en ambos casos.
+      var SENTIDO_GIRO = -1;
+      var SENTIDO_ORIENTACION = 1;
       var UMBRAL_ENVIO = 1;      // grados mínimos para enviar al PC
       var DEADBAND = 0.6;        // °/s: ignora ruido del giroscopio
 
@@ -92,7 +102,23 @@
       var estadoEl = document.getElementById("estado");
       var diagEl = document.getElementById("diag");
       var recalibrarBtn = document.getElementById("recalibrar");
+      var invertirBtn = document.getElementById("invertir");
       var permisoBtn = document.getElementById("permiso");
+
+      var invertido = false;
+      try {
+        invertido = localStorage.getItem("e2PerillaInvertida") === "1";
+      } catch (error) {
+        invertido = false;
+      }
+
+      function signoGiro() {
+        return invertido ? -SENTIDO_GIRO : SENTIDO_GIRO;
+      }
+
+      function signoOrientacion() {
+        return invertido ? -SENTIDO_ORIENTACION : SENTIDO_ORIENTACION;
+      }
 
       var acumulado = 0;
       var ultimoEnviado = null;
@@ -168,6 +194,30 @@
         estadoEl.textContent = "Recalibrado a 0°. Gira el teléfono.";
       }
 
+      function actualizarBotonInvertir() {
+        invertirBtn.textContent = invertido
+          ? "SENTIDO: INVERTIDO"
+          : "INVERTIR GIRO";
+      }
+
+      function invertirGiro() {
+        invertido = !invertido;
+        try {
+          localStorage.setItem("e2PerillaInvertida", invertido ? "1" : "0");
+        } catch (error) {
+          // Sin persistencia: se mantiene solo en esta sesión.
+        }
+        acumulado = 0;
+        ultimoEnviado = null;
+        ultimoTiempoGyro = null;
+        tasaFiltrada = 0;
+        alphaAnterior = ultimoAlpha;
+        actualizar();
+        actualizarBotonInvertir();
+        estadoEl.textContent =
+          "Sentido " + (invertido ? "invertido" : "normal") + ". Gira para probar.";
+      }
+
       // ---------- Giroscopio: fuente principal ----------
       function alMover(event) {
         eventosGyro++;
@@ -191,7 +241,7 @@
             // Suavizado suave para no acumular ruido.
             tasaFiltrada = tasaFiltrada * 0.7 + tasa * 0.3;
             var tasaUtil = Math.abs(tasaFiltrada) < DEADBAND ? 0 : tasaFiltrada;
-            acumulado += tasaUtil * dt * SENTIDO;
+            acumulado += tasaUtil * dt * signoGiro();
           }
         }
 
@@ -223,7 +273,7 @@
           var delta = event.alpha - alphaAnterior;
           if (delta > 180) delta -= 360;
           if (delta < -180) delta += 360;
-          acumulado += delta * SENTIDO;
+          acumulado += delta * signoOrientacion();
         }
 
         alphaAnterior = event.alpha;
@@ -252,6 +302,11 @@
 
       recalibrarBtn.addEventListener("click", function () {
         recalibrar();
+        pedirWakeLock();
+      });
+
+      invertirBtn.addEventListener("click", function () {
+        invertirGiro();
         pedirWakeLock();
       });
 
@@ -308,6 +363,7 @@
         window.addEventListener("deviceorientation", alOrientar, true);
       }
 
+      actualizarBotonInvertir();
       actualizar();
     })();
   </script>
