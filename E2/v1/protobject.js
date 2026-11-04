@@ -15,6 +15,12 @@
     }
     if (!mensaje || typeof mensaje !== "object") return;
 
+    // La perilla del proyectoenvía { angulo, vueltas } sin "tipo".
+    if (!mensaje.tipo && typeof mensaje.angulo === "number") {
+      manejarPerilla(mensaje.angulo);
+      return;
+    }
+
     switch (mensaje.tipo) {
       case "perilla":
         manejarPerilla(mensaje.angulo);
