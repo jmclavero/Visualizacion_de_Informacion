@@ -437,15 +437,6 @@ function enviarAnguloServo(veces) {
   );
 }
 
-// Alza (veces sobre el promedio de los 3 años anteriores) en un año dado.
-function alzaEnIndice(b, indice) {
-  if (indice < 3) return null;
-  const previo =
-    (b.serie[indice - 1] + b.serie[indice - 2] + b.serie[indice - 3]) / 3;
-  if (!previo) return null;
-  return b.serie[indice] / previo;
-}
-
 // Actualiza el cursor vertical y el punto rojo del detalle (perilla).
 function actualizarCursorDetalle(indice) {
   if (!detalleActual || typeof Plotly === "undefined") return;
@@ -454,14 +445,13 @@ function actualizarCursorDetalle(indice) {
   const anio = DATOS.anio_min + indice;
   const valor = b.serie[indice] || 0;
 
-  let alza = null;
-  if (anio === b.anio && b.prev > 0) {
-    alza = b.n / b.prev;
-  } else {
-    alza = alzaEnIndice(b, indice);
-  }
+  const textoValor =
+    valor === 0
+      ? "Sin inscripciones"
+      : `${valor.toLocaleString("es-CL")} ${
+          valor === 1 ? "inscripción" : "inscripciones"
+        }`;
 
-  const etiquetaAlza = alza === null ? "x—" : `x${alza.toFixed(1)}`;
   const mitad = (DATOS.anio_min + DATOS.anio_max) / 2;
   const aLaIzquierda = anio < mitad;
 
@@ -496,7 +486,7 @@ function actualizarCursorDetalle(indice) {
     {
       x: anio,
       y: valor,
-      text: `${anio} · ${etiquetaAlza}`,
+      text: `${anio} · ${textoValor}`,
       showarrow: false,
       xanchor: aLaIzquierda ? "left" : "right",
       yanchor: "bottom",
@@ -612,91 +602,6 @@ function ocultarTooltipSwarm() {
   if (tip) tip.hidden = true;
 }
 
-// Mini beeswarm de la categoría elegida, con líneas guía de valores.
-function dibujarMiniSwarm(b) {
-  const cont = document.getElementById("swarm-detalle-mini");
-  if (!cont) return;
-
-  cont.innerHTML = "";
-  if (!nodosSwarm || typeof d3 === "undefined") return;
-
-  const grupo = GRUPO_SWARM[b.categoria] || "Sin identificar";
-  const puntos = nodosSwarm.filter((n) => n.grupo === grupo);
-  if (!puntos.length) return;
-
-  const W = Math.max(200, cont.clientWidth || 260);
-  const H = Math.max(160, cont.clientHeight || 360);
-  const margen = { top: 14, right: 10, bottom: 16, left: 42 };
-  const anchoUtil = W - margen.left - margen.right;
-
-  const y = d3
-    .scaleLog()
-    .domain([4, 300])
-    .range([H - margen.bottom, margen.top]);
-
-  const xs = puntos.map((p) => p.x);
-  const minX = Math.min(...xs);
-  const maxX = Math.max(...xs);
-  const rangoX = maxX - minX || 1;
-  const x = (px) => margen.left + ((px - minX) / rangoX) * anchoUtil;
-
-  const ticks = H < 240 ? [4, 10, 40, 160, 300] : TICKS_Y_SWARM;
-  const color = COLOR_SWARM[grupo] || "#e34948";
-
-  const svg = d3
-    .select(cont)
-    .append("svg")
-    .attr("viewBox", `0 0 ${W} ${H}`)
-    .attr("preserveAspectRatio", "xMidYMid meet");
-
-  svg
-    .selectAll("line.guia-mini")
-    .data(ticks)
-    .join("line")
-    .attr("class", "guia-mini")
-    .attr("x1", margen.left)
-    .attr("x2", W - margen.right)
-    .attr("y1", (d) => y(d))
-    .attr("y2", (d) => y(d))
-    .attr("stroke", "#d8d7cf")
-    .attr("stroke-width", 1);
-
-  svg
-    .selectAll("text.guia-mini")
-    .data(ticks)
-    .join("text")
-    .attr("class", "guia-mini")
-    .attr("x", margen.left - 6)
-    .attr("y", (d) => y(d) + 3)
-    .attr("text-anchor", "end")
-    .attr("font-size", 10)
-    .attr("font-family", "system-ui, sans-serif")
-    .attr("fill", "#898781")
-    .text((d) => `${d}x`);
-
-  svg
-    .selectAll("circle.punto-mini")
-    .data(puntos)
-    .join("circle")
-    .attr("class", "punto-mini")
-    .attr("cx", (d) => x(d.x))
-    .attr("cy", (d) => y(d.veces))
-    .attr("r", (d) => (d.boom === b ? 6.5 : 4))
-    .attr("fill", color)
-    .attr("stroke", (d) => (d.boom === b ? "#0b0b0b" : "#ffffff"))
-    .attr("stroke-width", (d) => (d.boom === b ? 2 : 1));
-
-  svg
-    .append("text")
-    .attr("x", W / 2)
-    .attr("y", H - 2)
-    .attr("text-anchor", "middle")
-    .attr("font-size", 9)
-    .attr("font-family", "system-ui, sans-serif")
-    .attr("fill", "#898781")
-    .text("veces sobre el promedio");
-}
-
 function llenarDetalleSwarm(b) {
   const grupo = GRUPO_SWARM[b.categoria] || "Sin identificar";
   const color = COLOR_SWARM[grupo];
@@ -723,7 +628,6 @@ function llenarDetalleSwarm(b) {
     `+${b.extra} guaguas extra${fuenteHtml}`;
 
   dibujarDetalle(b, "swarm-grafico-detalle", color);
-  dibujarMiniSwarm(b);
 }
 
 function mostrarPanelSwarm(b) {
@@ -789,7 +693,7 @@ function seleccionarNodoSwarm(d, circle) {
     anchorY = swarmRect.height * 0.14;
   } else {
     // Panel lateral derecho: el punto se ancla al área libre de la izquierda.
-    const anchoPanel = Math.min(620, swarmRect.width);
+    const anchoPanel = Math.min(860, swarmRect.width * 0.94);
     anchorX = Math.max(swarmRect.width * 0.15, (swarmRect.width - anchoPanel) / 2);
     anchorY = swarmRect.height * 0.5;
   }

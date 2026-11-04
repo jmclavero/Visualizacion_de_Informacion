@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>La influencia de la televisión en los nombres de los chilenos</title>
-<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="style.css?v=20261104d" />
 <script src="https://app.protobject.com/framework/p.js"></script>
 <script src="config.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
@@ -91,12 +91,8 @@
   <aside class="swarm-detalle" id="swarm-detalle" hidden>
     <button type="button" class="swarm-detalle-cerrar" id="swarm-detalle-cerrar" aria-label="Cerrar detalle">×</button>
 
-    <div class="detalle-izquierda">
-      <p class="detalle-categoria" id="swarm-detalle-categoria">—</p>
-      <div class="detalle-mini" id="swarm-detalle-mini"></div>
-    </div>
-
     <div class="detalle-derecha">
+      <p class="detalle-categoria" id="swarm-detalle-categoria">—</p>
       <p class="detalle-eyebrow">Gráfico detalle de nombre</p>
       <div class="detalle-titulo">
         <h3 id="swarm-detalle-nombre">—</h3>
@@ -104,6 +100,7 @@
       <div id="swarm-grafico-detalle"></div>
       <p id="swarm-detalle-causa"></p>
       <p id="swarm-detalle-meta"></p>
+      <span id="swarm-detalle-chip" style="display: none"></span>
     </div>
   </aside>
   <button type="button" class="slide-atras" id="swarm-atras">
@@ -114,7 +111,7 @@
   </button>
 </div>
 
-<script defer src="main.js"></script>
+<script defer src="main.js?v=20261104d"></script>
 <script defer src="protobject.js"></script>
 </body>
 </html>
