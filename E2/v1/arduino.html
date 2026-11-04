@@ -16,7 +16,7 @@
       font-family: system-ui, -apple-system, "Segoe UI", sans-serif; text-align: center;
     }
     h1 { margin: 0; font-size: 1.5rem; }
-    .hint { margin: 0; max-width: 46ch; color: #52514e; line-height: 1.45; font-size: .92rem; }
+    .hint { margin: 0; max-width: 48ch; color: #52514e; line-height: 1.45; font-size: .92rem; }
     .gauge {
       position: relative; width: min(340px, 88vw); height: 180px;
       border-radius: 340px 340px 0 0; background: #fcfcfb;
@@ -40,20 +40,27 @@
     }
     button:disabled { opacity: .45; cursor: not-allowed; }
     button.secundario { background: #52514e; }
-    .estado { margin: 0; color: #52514e; font-size: .95rem; min-height: 1.4em; max-width: 46ch; }
-    .diag { margin: 0; color: #898781; font-size: .8rem; line-height: 1.5; max-width: 46ch; }
+    .acciones { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+    .estado { margin: 0; color: #52514e; font-size: .95rem; min-height: 1.4em; max-width: 48ch; }
+    .diag { margin: 0; color: #898781; font-size: .8rem; line-height: 1.5; max-width: 48ch; }
     .diag .mal { color: #c0392b; }
     .diag .bien { color: #1baf7a; }
+    .log {
+      width: min(460px, 92vw); height: 132px; overflow-y: auto; margin: 0;
+      padding: 10px; border-radius: 10px; background: #fcfcfb;
+      border: 1px solid rgba(11,11,11,.1);
+      font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+      font-size: .72rem; line-height: 1.5; text-align: left;
+      white-space: pre-wrap; color: #52514e;
+    }
   </style>
 </head>
 <body>
   <h1>Servo 180° · velocímetro del alza</h1>
   <p class="hint">
-    Servo en el <strong>pin 6</strong> (señal), 5 V externo y tierra común con el
-    Arduino. Sube una vez el sketch
-    <code>arduino-servo/arduino-servo.ino</code> con Arduino IDE (si el puerto no
-    aparece, instala el driver CH340) y conecta por Web Serial. El Arduino debe
-    estar enchufado a este computador.
+    Servo en el <strong>pin 6</strong> (señal), 5 V y GND común. La placa ya
+    tiene el sketch de control: responde <code>OK A&lt;ángulo&gt;</code>. Conecta
+    por Web Serial desde este computador y elige el puerto del Arduino.
   </p>
 
   <div class="gauge">
@@ -63,21 +70,47 @@
   <p class="estado" id="estado">Sin conectar.</p>
   <p class="diag" id="diag"></p>
 
-  <button id="conectar" type="button">CONECTAR ARDUINO (Web Serial)</button>
+  <div class="acciones">
+    <button id="conectar" type="button">CONECTAR ARDUINO (Web Serial)</button>
+    <button id="probar" type="button" class="secundario" disabled>PROBAR SERVO</button>
+  </div>
+
+  <pre class="log" id="log">Registro:</pre>
 
   <script>
     (function () {
       var conectado = false;
       var listo = false;
       var puerto = null;
+      var escritor = null;
+      var lector = null;
+      var lecturaPromesa = null;
       var ultimoAngulo = 0;
       var colaEscritura = Promise.resolve();
+      var logLineas = [];
+      var temporizadorListo = null;
 
       var estadoEl = document.getElementById("estado");
       var valorEl = document.getElementById("valor");
       var agujaEl = document.getElementById("aguja");
       var diagEl = document.getElementById("diag");
+      var logEl = document.getElementById("log");
       var conectarBtn = document.getElementById("conectar");
+      var probarBtn = document.getElementById("probar");
+
+      function log(texto) {
+        logLineas.push(texto);
+        if (logLineas.length > 14) logLineas.shift();
+        logEl.textContent = "Registro:\n" + logLineas.join("\n");
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      function actualizarBotones() {
+        probarBtn.disabled = !(conectado && listo);
+        conectarBtn.textContent = conectado
+          ? "DESCONECTAR ARDUINO"
+          : "CONECTAR ARDUINO (Web Serial)";
+      }
 
       function actualizarDiagnostico() {
         var lineas = [];
@@ -120,25 +153,71 @@
         }
       }
 
+      function marcarListo() {
+        if (!conectado || listo) return;
+        if (temporizadorListo) {
+          clearTimeout(temporizadorListo);
+          temporizadorListo = null;
+        }
+        listo = true;
+        actualizarBotones();
+        enviarSerial("A" + Math.round(ultimoAngulo) + "\n");
+        estadoEl.textContent = "Arduino conectado. Esperando alzas…";
+      }
+
       function enviarSerial(texto) {
-        if (!puerto || !puerto.writable) return;
-        colaEscritura = colaEscritura
-          .then(function () {
-            if (!puerto || !puerto.writable) return;
-            var writer = puerto.writable.getWriter();
-            return writer
-              .write(new TextEncoder().encode(texto))
-              .catch(function (error) {
-                try { writer.releaseLock(); } catch (e) {}
-                throw error;
-              })
-              .then(function () {
-                try { writer.releaseLock(); } catch (e) {}
-              });
-          })
-          .catch(function (error) {
-            estadoEl.textContent = "Error al enviar al Arduino: " + error.message;
-          });
+        colaEscritura = colaEscritura.then(async function () {
+          if (!conectado || !escritor) return;
+          try {
+            await escritor.write(new TextEncoder().encode(texto));
+            log("Enviado: " + texto.trim());
+          } catch (error) {
+            log("Error al enviar: " + error.name + " · " + error.message);
+            estadoEl.textContent =
+              "Se perdió la conexión con el Arduino. Vuelve a conectarlo.";
+            await marcarDesconectado();
+          }
+        });
+      }
+
+      async function leerSerial() {
+        if (!puerto || !puerto.readable) return;
+
+        try {
+          lector = puerto.readable.getReader();
+          while (true) {
+            var resultado = await lector.read();
+            if (resultado.done) break;
+            if (resultado.value) {
+              var texto = new TextDecoder().decode(resultado.value).trim();
+              if (texto) {
+                log("Arduino: " + texto);
+                if (texto.indexOf("Listo") !== -1) marcarListo();
+              }
+            }
+          }
+        } catch (error) {
+          if (conectado) log("Error de lectura: " + error.message);
+        } finally {
+          try { lector.releaseLock(); } catch (e) {}
+          lector = null;
+        }
+      }
+
+      async function marcarDesconectado() {
+        conectado = false;
+        listo = false;
+        if (temporizadorListo) {
+          clearTimeout(temporizadorListo);
+          temporizadorListo = null;
+        }
+        try { if (lector) await lector.cancel(); } catch (e) {}
+        lector = null;
+        lecturaPromesa = null;
+        try { if (escritor) escritor.releaseLock(); } catch (e) {}
+        escritor = null;
+        puerto = null;
+        actualizarBotones();
       }
 
       function aplicarAngulo(angulo) {
@@ -160,45 +239,73 @@
 
         conectarBtn.disabled = true;
         estadoEl.textContent = "Eligiendo el puerto serial…";
+        log("Pidiendo puerto…");
 
         try {
           puerto = await navigator.serial.requestPort();
           await puerto.open({ baudRate: 9600 });
+          escritor = puerto.writable.getWriter();
 
           conectado = true;
           listo = false;
-          conectarBtn.disabled = false;
-          conectarBtn.textContent = "DESCONECTAR ARDUINO";
+          actualizarBotones();
           estadoEl.textContent = "Conectado. Esperando a que el Arduino reinicie…";
 
-          // El Arduino Uno se reinicia al abrir el puerto; esperamos al bootloader.
-          setTimeout(function () {
-            if (!conectado) return;
-            listo = true;
-            enviarSerial("A" + Math.round(ultimoAngulo) + "\n");
-            estadoEl.textContent = "Arduino conectado. Esperando alzas…";
-          }, 1800);
+          var info = puerto.getInfo ? puerto.getInfo() : {};
+          if (info.usbVendorId !== undefined) {
+            log(
+              "Puerto: VID 0x" + info.usbVendorId.toString(16) +
+              " PID 0x" + info.usbProductId.toString(16)
+            );
+          }
+
+          lecturaPromesa = leerSerial();
+
+          // La Leonardo se reinicia al abrir el puerto. Normalmente el sketch
+          // avisa "Listo"; si no llega, esperamos 4 s como respaldo.
+          temporizadorListo = setTimeout(marcarListo, 4000);
         } catch (error) {
-          conectado = false;
-          listo = false;
-          puerto = null;
-          conectarBtn.disabled = false;
-          conectarBtn.textContent = "CONECTAR ARDUINO (Web Serial)";
+          log("No se pudo conectar: " + error.message);
           estadoEl.textContent = "No se pudo conectar: " + error.message;
+          await marcarDesconectado();
+          conectarBtn.disabled = false;
         }
       }
 
       async function desconectar() {
         conectado = false;
         listo = false;
-        try {
-          if (puerto) await puerto.close();
-        } catch (error) {
-          // El puerto pudo haberse desconectado físicamente.
+        if (temporizadorListo) {
+          clearTimeout(temporizadorListo);
+          temporizadorListo = null;
         }
+        actualizarBotones();
+
+        try { if (lector) await lector.cancel(); } catch (e) {}
+        try { if (lecturaPromesa) await lecturaPromesa; } catch (e) {}
+        lector = null;
+        lecturaPromesa = null;
+        try { if (escritor) escritor.releaseLock(); } catch (e) {}
+        escritor = null;
+        try { if (puerto) await puerto.close(); } catch (e) {}
         puerto = null;
-        conectarBtn.textContent = "CONECTAR ARDUINO (Web Serial)";
+
         estadoEl.textContent = "Desconectado.";
+        log("Desconectado.");
+      }
+
+      async function probarServo() {
+        if (!conectado || !listo) return;
+        probarBtn.disabled = true;
+        log("Prueba de servo: 0° → 90° → 180° → 0°");
+
+        var pasos = [0, 90, 180, 0];
+        for (var i = 0; i < pasos.length; i++) {
+          enviarSerial("A" + pasos[i] + "\n");
+          await new Promise(function (resolve) { setTimeout(resolve, 800); });
+        }
+
+        probarBtn.disabled = !(conectado && listo);
       }
 
       conectarBtn.addEventListener("click", function () {
@@ -209,25 +316,27 @@
         }
       });
 
+      probarBtn.addEventListener("click", probarServo);
+
       if (navigator.serial) {
         navigator.serial.addEventListener("disconnect", function (event) {
           if (event.target !== puerto) return;
-          conectado = false;
-          listo = false;
-          puerto = null;
-          conectarBtn.textContent = "CONECTAR ARDUINO (Web Serial)";
+          log("Arduino desconectado físicamente.");
           estadoEl.textContent = "Arduino desconectado. Vuelve a conectarlo.";
+          marcarDesconectado();
         });
       }
 
       if (typeof Protobject !== "undefined" && Protobject.Core) {
         Protobject.Core.onReceived(function (data) {
           if (!data || data.tipo !== "servo") return;
+          log("Protobject: servo " + data.angulo);
           aplicarAngulo(data.angulo);
         });
       }
 
       actualizarDiagnostico();
+      actualizarBotones();
       aplicarAngulo(0);
     })();
   </script>
