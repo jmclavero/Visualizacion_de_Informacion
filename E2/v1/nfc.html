@@ -16,7 +16,7 @@
       font-family: system-ui, -apple-system, "Segoe UI", sans-serif; text-align: center;
     }
     h1 { margin: 0; font-size: 1.5rem; }
-    .hint { margin: 0; max-width: 36ch; color: #52514e; line-height: 1.45; font-size: .95rem; }
+    .hint { margin: 0; max-width: 38ch; color: #52514e; line-height: 1.45; font-size: .95rem; }
     .acciones { display: flex; flex-direction: column; gap: 10px; width: min(340px, 92vw); }
     button {
       border: 0; border-radius: 12px; padding: 14px 18px; font: inherit;
@@ -25,6 +25,7 @@
     }
     button.secundario { background: #52514e; }
     button.peligro { background: #e34948; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
     .lista { width: min(340px, 92vw); display: flex; flex-direction: column; gap: 6px; }
     .item {
       display: flex; align-items: center; gap: 8px;
@@ -36,6 +37,9 @@
     .item button {
       padding: 6px 10px; font-size: .75rem; border-radius: 8px; white-space: nowrap;
     }
+    input[type="checkbox"] {
+      width: 18px; height: 18px; accent-color: #2a78d6; flex: none;
+    }
     .ok { color: #1baf7a; font-weight: 700; }
     .pend { color: #898781; }
     .estado { margin: 0; min-height: 2.6em; color: #52514e; font-size: .95rem; max-width: 36ch; }
@@ -44,18 +48,23 @@
 <body>
   <h1>Tarjetas NFC</h1>
   <p class="hint">
-    Acerca una tarjeta a la parte trasera del Android para activar o desactivar
-    su categoría en el beeswarm. Requiere Android + Chrome.
+    Elige las tarjetas que tengas a mano: solo esas se aprenderán y se usarán
+    para activar o desactivar su categoría en el beeswarm. Requiere Android + Chrome.
   </p>
 
-  <div class="acciones">
+  <div class="acciones" id="accionesSeleccion">
+    <button id="usar" disabled>USAR SELECCIÓN</button>
+  </div>
+
+  <div class="acciones" id="accionesAprender" hidden>
     <button id="iniciar">INICIAR LECTOR NFC</button>
     <button id="probar" class="secundario">PROBAR TARJETA</button>
+    <button id="cambiar" class="secundario">CAMBIAR SELECCIÓN</button>
     <button id="borrar" class="peligro">BORRAR TARJETAS APRENDIDAS</button>
   </div>
 
   <div class="lista" id="lista"></div>
-  <p class="estado" id="estado">Sin iniciar.</p>
+  <p class="estado" id="estado">Elige las tarjetas que tengas a mano.</p>
 
   <script>
     (function () {
@@ -66,14 +75,29 @@
         "No televisivas",
         "Sin identificar",
       ];
-      var CLAVE = "e2NfcTarjetas";
+      var CLAVE_TARJETAS = "e2NfcTarjetas";
+      var CLAVE_SELECCION = "e2NfcSeleccion";
+
       var tarjetas = {};
       try {
-        tarjetas = JSON.parse(localStorage.getItem(CLAVE) || "{}") || {};
+        tarjetas = JSON.parse(localStorage.getItem(CLAVE_TARJETAS) || "{}") || {};
       } catch (e) {
         tarjetas = {};
       }
 
+      var seleccion = [];
+      try {
+        var guardada = JSON.parse(localStorage.getItem(CLAVE_SELECCION) || "null");
+        if (Array.isArray(guardada)) {
+          seleccion = guardada.filter(function (c) {
+            return CATEGORIAS.indexOf(c) !== -1;
+          });
+        }
+      } catch (e) {
+        seleccion = [];
+      }
+
+      var vista = seleccion.length ? "aprender" : "seleccion";
       var aprendiendo = null; // categoría que se está aprendiendo (o null)
       var modoPrueba = false;
       var ultimoId = null;
@@ -83,14 +107,56 @@
       var estadoEl = document.getElementById("estado");
       var listaEl = document.getElementById("lista");
       var probarBtn = document.getElementById("probar");
+      var usarBtn = document.getElementById("usar");
+      var accionesSeleccion = document.getElementById("accionesSeleccion");
+      var accionesAprender = document.getElementById("accionesAprender");
 
-      function guardar() {
-        localStorage.setItem(CLAVE, JSON.stringify(tarjetas));
+      function guardarTarjetas() {
+        localStorage.setItem(CLAVE_TARJETAS, JSON.stringify(tarjetas));
       }
 
-      function renderLista() {
+      function guardarSeleccion() {
+        localStorage.setItem(CLAVE_SELECCION, JSON.stringify(seleccion));
+      }
+
+      function seleccionada(cat) {
+        return seleccion.indexOf(cat) !== -1;
+      }
+
+      function renderSeleccion() {
         listaEl.innerHTML = "";
+        var marcadas = 0;
+
         CATEGORIAS.forEach(function (cat) {
+          var fila = document.createElement("div");
+          fila.className = "item";
+
+          var chk = document.createElement("input");
+          chk.type = "checkbox";
+          chk.id = "chk-" + CATEGORIAS.indexOf(cat);
+          chk.checked = seleccionada(cat);
+          if (chk.checked) marcadas++;
+          chk.addEventListener("change", function () {
+            usarBtn.disabled = !document.querySelector("#lista input:checked");
+          });
+
+          var label = document.createElement("label");
+          label.className = "nombre";
+          label.htmlFor = chk.id;
+          label.textContent = cat;
+
+          fila.appendChild(chk);
+          fila.appendChild(label);
+          listaEl.appendChild(fila);
+        });
+
+        usarBtn.disabled = marcadas === 0;
+      }
+
+      function renderAprender() {
+        listaEl.innerHTML = "";
+
+        seleccion.forEach(function (cat) {
           var fila = document.createElement("div");
           fila.className = "item";
 
@@ -116,6 +182,16 @@
         });
       }
 
+      function render() {
+        accionesSeleccion.hidden = vista !== "seleccion";
+        accionesAprender.hidden = vista !== "aprender";
+        if (vista === "seleccion") {
+          renderSeleccion();
+        } else {
+          renderAprender();
+        }
+      }
+
       function enviarCategoria(cat) {
         if (typeof Protobject === "undefined" || !Protobject.Core) return;
         Protobject.Core.send({ tipo: "nfc", categoria: cat }).to("index.html");
@@ -124,6 +200,10 @@
       function iniciarAprendizaje(cat) {
         if (!leyendo) {
           estadoEl.textContent = "Primero toca INICIAR LECTOR NFC.";
+          return;
+        }
+        if (!seleccionada(cat)) {
+          estadoEl.textContent = "Esa categoría no está seleccionada.";
           return;
         }
         modoPrueba = false;
@@ -144,8 +224,34 @@
           : "PROBAR TARJETA";
         estadoEl.textContent = modoPrueba
           ? "Modo prueba: acerca una tarjeta para ver su UID."
-          : "Modo uso. Acerca una tarjeta aprendida.";
+          : "Modo uso. Acerca una tarjeta aprendida y seleccionada.";
       }
+
+      usarBtn.addEventListener("click", function () {
+        var marcadas = [];
+        document.querySelectorAll("#lista input:checked").forEach(function (chk) {
+          var index = parseInt(chk.id.replace("chk-", ""), 10);
+          marcadas.push(CATEGORIAS[index]);
+        });
+        if (!marcadas.length) {
+          estadoEl.textContent = "Elige al menos una tarjeta.";
+          return;
+        }
+        seleccion = marcadas;
+        guardarSeleccion();
+        vista = "aprender";
+        render();
+        estadoEl.textContent = "Selección guardada. Puedes aprender tus tarjetas.";
+      });
+
+      document.getElementById("cambiar").addEventListener("click", function () {
+        vista = "seleccion";
+        aprendiendo = null;
+        modoPrueba = false;
+        probarBtn.textContent = "PROBAR TARJETA";
+        render();
+        estadoEl.textContent = "Marca las tarjetas que tengas a mano.";
+      });
 
       document.getElementById("iniciar").addEventListener("click", function () {
         if (typeof Protobject === "undefined" || !Protobject.NFC) {
@@ -163,8 +269,8 @@
 
       document.getElementById("borrar").addEventListener("click", function () {
         tarjetas = {};
-        guardar();
-        renderLista();
+        guardarTarjetas();
+        render();
         aprendiendo = null;
         modoPrueba = false;
         probarBtn.textContent = "PROBAR TARJETA";
@@ -177,8 +283,20 @@
           if (modoPrueba) {
             if (id === "err: no compatible") {
               estadoEl.textContent = "Tarjeta no legible por Web NFC.";
+              return;
+            }
+
+            var categoriaPrueba = null;
+            Object.keys(tarjetas).forEach(function (k) {
+              if (tarjetas[k] === id) categoriaPrueba = k;
+            });
+
+            if (categoriaPrueba) {
+              estadoEl.textContent =
+                "UID: " + id + " (legible) · " + categoriaPrueba +
+                (seleccionada(categoriaPrueba) ? " (habilitada)" : " (no habilitada)");
             } else {
-              estadoEl.textContent = "UID: " + id + " (legible)";
+              estadoEl.textContent = "UID: " + id + " (legible) · sin categoría aprendida";
             }
             return;
           }
@@ -188,11 +306,11 @@
             return;
           }
 
-          // Aprendizaje de una sola categoría.
+          // Aprendizaje de una sola categoría seleccionada.
           if (aprendiendo !== null) {
             tarjetas[aprendiendo] = id;
-            guardar();
-            renderLista();
+            guardarTarjetas();
+            render();
             estadoEl.textContent = "✓ " + aprendiendo + " aprendida.";
             aprendiendo = null;
             return;
@@ -209,6 +327,12 @@
             return;
           }
 
+          if (!seleccionada(categoria)) {
+            estadoEl.textContent =
+              "Tarjeta de " + categoria + ", pero esa categoría no está habilitada.";
+            return;
+          }
+
           var ahora = Date.now();
           if (id === ultimoId && ahora - ultimoTiempo < 2000) return;
           ultimoId = id;
@@ -219,7 +343,10 @@
         });
       }
 
-      renderLista();
+      if (vista === "aprender") {
+        estadoEl.textContent = "Selección guardada. Puedes aprender tus tarjetas.";
+      }
+      render();
     })();
   </script>
 </body>

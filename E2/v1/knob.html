@@ -15,10 +15,15 @@
       background: #f9f9f7; color: #0b0b0b;
       font-family: system-ui, -apple-system, "Segoe UI", sans-serif; text-align: center;
     }
+    .app {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 16px; width: 100%; max-width: 900px;
+    }
     h1 { margin: 0; font-size: 1.6rem; }
-    .hint { margin: 0; max-width: 34ch; color: #52514e; line-height: 1.45; }
+    .hint { margin: 0; max-width: 40ch; color: #52514e; line-height: 1.45; }
     .lectura { font-size: 4rem; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
     .fila { display: flex; gap: 18px; font-size: 1.1rem; color: #52514e; }
+    .controles { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
     button {
       border: 0; border-radius: 999px; padding: 14px 24px; font: inherit;
       font-size: 1rem; font-weight: 700; cursor: pointer; color: #fff;
@@ -27,26 +32,56 @@
     button.secundario { background: #52514e; box-shadow: none; }
     button:disabled { opacity: .5; cursor: default; }
     .oculto { display: none; }
-    .estado { margin: 0; color: #898781; font-size: .9rem; max-width: 34ch; }
+    .estado { margin: 0; color: #898781; font-size: .9rem; max-width: 40ch; }
+
+    /* Si el teléfono está acostado pero el navegador sigue en vertical,
+       rotamos toda la interfaz para que se lea en horizontal. */
+    @media (orientation: portrait) {
+      body { overflow: hidden; }
+      .app {
+        position: fixed; top: 50%; left: 50%;
+        width: 100vh; height: 100vw; max-width: none;
+        padding: 12px;
+        gap: 12px;
+        transform: translate(-50%, -50%) rotate(var(--giro, 90deg));
+      }
+      .app h1 { font-size: 1.2rem; }
+      .app .lectura { font-size: 3rem; }
+      .app .hint { font-size: .85rem; max-width: 52ch; }
+    }
+
+    @media (orientation: landscape) and (max-height: 480px) {
+      body { gap: 10px; padding: 12px; }
+      h1 { font-size: 1.2rem; }
+      .lectura { font-size: 2.8rem; }
+      .hint { font-size: .85rem; }
+    }
   </style>
 </head>
 <body>
-  <h1>Perilla</h1>
-  <p class="hint">
-    Gira el teléfono sobre la mesa como una perilla. Una vuelta completa
-    recorre 1920 → 2021 en el detalle del punto.
-  </p>
+  <div class="app">
+    <h1>Perilla</h1>
+    <p class="hint">
+      Acuesta el teléfono con la pantalla hacia arriba (horizontal) y gíralo
+      sobre la mesa como una perilla. Una vuelta completa recorre 1920 → 2021
+      en el detalle del punto.
+    </p>
 
-  <div class="lectura" id="valor">—</div>
-  <div class="fila">
-    <span id="sentido">—</span>
-    <span id="vueltas">0 vueltas</span>
+    <div class="lectura" id="valor">—</div>
+    <div class="fila">
+      <span id="sentido">—</span>
+      <span id="vueltas">0 vueltas</span>
+    </div>
+
+    <div class="controles">
+      <button id="pantalla">PANTALLA COMPLETA HORIZONTAL</button>
+      <button id="girar" class="secundario">GIRAR 90°</button>
+      <button id="calibrar" class="secundario">CALIBRAR COMO POSICIÓN 0</button>
+      <button id="permiso" class="oculto">PEDIR PERMISO DE ORIENTACIÓN</button>
+    </div>
+
+    <p class="estado" id="estado">Esperando lectura del sensor…</p>
   </div>
-
-  <button id="permiso" class="oculto">PEDIR PERMISO DE ORIENTACIÓN</button>
-  <button id="calibrar" class="secundario">CALIBRAR COMO POSICIÓN 0</button>
-
-  <p class="estado" id="estado">Esperando lectura del sensor…</p>
 
   <script>
     (function () {
@@ -59,11 +94,15 @@
       var estadoEl = document.getElementById("estado");
       var permisoBtn = document.getElementById("permiso");
       var calibrarBtn = document.getElementById("calibrar");
+      var pantallaBtn = document.getElementById("pantalla");
+      var girarBtn = document.getElementById("girar");
 
       var alphaAnterior = null;
       var acumulado = 0;
       var origen = null;
       var anguloPrevio = null;
+      var giro = 90;
+      var wakeLock = null;
 
       function enviar(mensaje) {
         if (typeof Protobject !== "undefined" && Protobject.Core) {
@@ -71,9 +110,44 @@
         }
       }
 
+      function reiniciarReferencia() {
+        // Evita un salto falso cuando el navegador cambia de orientación.
+        alphaAnterior = null;
+        anguloPrevio = null;
+      }
+
+      async function pedirWakeLock() {
+        try {
+          if ("wakeLock" in navigator) {
+            wakeLock = await navigator.wakeLock.request("screen");
+          }
+        } catch (error) {
+          // Sin wake lock: la demo sigue funcionando.
+        }
+      }
+
       function handler(event) {
         var alpha = event.alpha;
         if (alpha === null || alpha === undefined) return;
+
+        // La perilla solo tiene sentido con el teléfono plano, pantalla arriba.
+        var beta = event.beta;
+        var gamma = event.gamma;
+        var plano = true;
+        if (
+          beta !== null && beta !== undefined &&
+          gamma !== null && gamma !== undefined
+        ) {
+          plano = Math.abs(beta) < 30 && Math.abs(gamma) < 30;
+        }
+
+        if (!plano) {
+          alphaAnterior = null;
+          if (origen !== null) {
+            estadoEl.textContent = "Acuesta el teléfono con la pantalla hacia arriba.";
+          }
+          return;
+        }
 
         if (alphaAnterior !== null) {
           var delta = alpha - alphaAnterior;
@@ -104,10 +178,34 @@
         enviar({ tipo: "perilla", angulo: angulo });
       }
 
+      pantallaBtn.addEventListener("click", async function () {
+        try {
+          if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+            await document.documentElement.requestFullscreen();
+          }
+          if (screen.orientation && screen.orientation.lock) {
+            await screen.orientation.lock("landscape");
+          }
+          estadoEl.textContent = "Pantalla horizontal. Acuesta el teléfono y calibra.";
+        } catch (error) {
+          estadoEl.textContent =
+            "No se pudo bloquear la orientación. Usa GIRAR 90° si hace falta.";
+        }
+        pedirWakeLock();
+      });
+
+      girarBtn.addEventListener("click", function () {
+        giro = giro === 90 ? -90 : 90;
+        document.documentElement.style.setProperty("--giro", giro + "deg");
+        estadoEl.textContent =
+          "Interfaz girada " + giro + "°. Ajusta según cómo apoyes el teléfono.";
+      });
+
       calibrarBtn.addEventListener("click", function () {
         origen = acumulado;
         anguloPrevio = null;
         estadoEl.textContent = "Calibrado. Gira el teléfono.";
+        pedirWakeLock();
       });
 
       // Reset que envía el PC al abrir un nuevo detalle.
@@ -120,6 +218,15 @@
           }
         });
       }
+
+      if (screen.orientation && screen.orientation.addEventListener) {
+        screen.orientation.addEventListener("change", reiniciarReferencia);
+      }
+      window.addEventListener("orientationchange", reiniciarReferencia);
+
+      document.addEventListener("visibilitychange", function () {
+        if (document.visibilityState === "visible") pedirWakeLock();
+      });
 
       // iOS exige permiso desde un toque del usuario.
       if (

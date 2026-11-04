@@ -11,12 +11,12 @@
     * { box-sizing: border-box; }
     body {
       margin: 0; min-height: 100vh; display: flex; flex-direction: column;
-      align-items: center; justify-content: center; gap: 16px; padding: 24px;
+      align-items: center; justify-content: center; gap: 14px; padding: 24px;
       background: #f9f9f7; color: #0b0b0b;
       font-family: system-ui, -apple-system, "Segoe UI", sans-serif; text-align: center;
     }
     h1 { margin: 0; font-size: 1.5rem; }
-    .hint { margin: 0; max-width: 44ch; color: #52514e; line-height: 1.45; font-size: .92rem; }
+    .hint { margin: 0; max-width: 46ch; color: #52514e; line-height: 1.45; font-size: .92rem; }
     .gauge {
       position: relative; width: min(340px, 88vw); height: 180px;
       border-radius: 340px 340px 0 0; background: #fcfcfb;
@@ -38,14 +38,22 @@
       font-size: 1rem; font-weight: 700; cursor: pointer; color: #fff;
       background: #2a78d6;
     }
-    .estado { margin: 0; color: #52514e; font-size: .95rem; min-height: 1.4em; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    button.secundario { background: #52514e; }
+    .estado { margin: 0; color: #52514e; font-size: .95rem; min-height: 1.4em; max-width: 46ch; }
+    .diag { margin: 0; color: #898781; font-size: .8rem; line-height: 1.5; max-width: 46ch; }
+    .diag .mal { color: #c0392b; }
+    .diag .bien { color: #1baf7a; }
   </style>
 </head>
 <body>
   <h1>Servo 180° · velocímetro del alza</h1>
   <p class="hint">
-    Carga en el Arduino el sketch genérico de Protobject y conecta el servo al
-    <strong>pin 6</strong> (señal), 5 V externo y tierra común.
+    Servo en el <strong>pin 6</strong> (señal), 5 V externo y tierra común con el
+    Arduino. Sube una vez el sketch
+    <code>arduino-servo/arduino-servo.ino</code> con Arduino IDE (si el puerto no
+    aparece, instala el driver CH340) y conecta por Web Serial. El Arduino debe
+    estar enchufado a este computador.
   </p>
 
   <div class="gauge">
@@ -53,41 +61,164 @@
   </div>
   <div class="valor" id="valor">0°</div>
   <p class="estado" id="estado">Sin conectar.</p>
+  <p class="diag" id="diag"></p>
 
   <button id="conectar" type="button">CONECTAR ARDUINO (Web Serial)</button>
 
   <script>
     (function () {
-      var PIN_SERVO = 6; // cable amarillo (señal) al pin 6
       var conectado = false;
+      var listo = false;
+      var puerto = null;
+      var ultimoAngulo = 0;
+      var colaEscritura = Promise.resolve();
+
       var estadoEl = document.getElementById("estado");
       var valorEl = document.getElementById("valor");
       var agujaEl = document.getElementById("aguja");
+      var diagEl = document.getElementById("diag");
+      var conectarBtn = document.getElementById("conectar");
 
-      function aplicarAngulo(angulo) {
-        var a = Math.max(0, Math.min(180, Number(angulo) || 0));
-        valorEl.textContent = Math.round(a) + "°";
-        agujaEl.style.transform = "rotate(" + (a - 90) + "deg)";
-        if (conectado && typeof Protobject !== "undefined" && Protobject.Arduino) {
-          Protobject.Arduino.servoWrite({ pin: PIN_SERVO, value: Math.round(a) });
+      function actualizarDiagnostico() {
+        var lineas = [];
+
+        if (location.protocol === "file:") {
+          lineas.push(
+            '<span class="mal">✗</span> Estás abriendo con <code>file://</code>. ' +
+            'Usa <code>http://localhost</code> o HTTPS (ejecuta <code>servir.ps1</code>).'
+          );
+        } else if (window.isSecureContext) {
+          lineas.push('<span class="bien">✓</span> Contexto seguro');
+        } else {
+          lineas.push(
+            '<span class="mal">✗</span> No es contexto seguro: abre con ' +
+            '<code>http://localhost</code> o HTTPS.'
+          );
+        }
+
+        if (navigator.serial) {
+          lineas.push('<span class="bien">✓</span> Web Serial disponible');
+        } else {
+          lineas.push(
+            '<span class="mal">✗</span> Web Serial no disponible: usa Chrome o ' +
+            'Edge de escritorio.'
+          );
+        }
+
+        diagEl.innerHTML = lineas.join("<br>");
+
+        var disponible =
+          location.protocol !== "file:" &&
+          window.isSecureContext &&
+          !!navigator.serial;
+        conectarBtn.disabled = !disponible;
+        if (!disponible) {
+          estadoEl.textContent =
+            "No se puede conectar desde este contexto. Sirve la página en localhost o HTTPS.";
+        } else if (!conectado) {
+          estadoEl.textContent = "Listo para conectar.";
         }
       }
 
-      document.getElementById("conectar").addEventListener("click", function () {
-        if (typeof Protobject === "undefined" || !Protobject.Arduino) {
-          estadoEl.textContent = "Protobject.Arduino no está disponible.";
-          return;
-        }
-        estadoEl.textContent = "Pidiendo permiso Web Serial…";
-        Protobject.Arduino.start()
+      function enviarSerial(texto) {
+        if (!puerto || !puerto.writable) return;
+        colaEscritura = colaEscritura
           .then(function () {
-            conectado = true;
-            estadoEl.textContent = "Arduino conectado. Esperando alzas…";
+            if (!puerto || !puerto.writable) return;
+            var writer = puerto.writable.getWriter();
+            return writer
+              .write(new TextEncoder().encode(texto))
+              .catch(function (error) {
+                try { writer.releaseLock(); } catch (e) {}
+                throw error;
+              })
+              .then(function () {
+                try { writer.releaseLock(); } catch (e) {}
+              });
           })
           .catch(function (error) {
-            estadoEl.textContent = "No se pudo conectar: " + error.message;
+            estadoEl.textContent = "Error al enviar al Arduino: " + error.message;
           });
+      }
+
+      function aplicarAngulo(angulo) {
+        var a = Math.max(0, Math.min(180, Number(angulo) || 0));
+        ultimoAngulo = a;
+        valorEl.textContent = Math.round(a) + "°";
+        agujaEl.style.transform = "rotate(" + (a - 90) + "deg)";
+
+        if (conectado && listo) {
+          enviarSerial("A" + Math.round(a) + "\n");
+        }
+      }
+
+      async function conectar() {
+        if (!window.isSecureContext || !navigator.serial) {
+          actualizarDiagnostico();
+          return;
+        }
+
+        conectarBtn.disabled = true;
+        estadoEl.textContent = "Eligiendo el puerto serial…";
+
+        try {
+          puerto = await navigator.serial.requestPort();
+          await puerto.open({ baudRate: 9600 });
+
+          conectado = true;
+          listo = false;
+          conectarBtn.disabled = false;
+          conectarBtn.textContent = "DESCONECTAR ARDUINO";
+          estadoEl.textContent = "Conectado. Esperando a que el Arduino reinicie…";
+
+          // El Arduino Uno se reinicia al abrir el puerto; esperamos al bootloader.
+          setTimeout(function () {
+            if (!conectado) return;
+            listo = true;
+            enviarSerial("A" + Math.round(ultimoAngulo) + "\n");
+            estadoEl.textContent = "Arduino conectado. Esperando alzas…";
+          }, 1800);
+        } catch (error) {
+          conectado = false;
+          listo = false;
+          puerto = null;
+          conectarBtn.disabled = false;
+          conectarBtn.textContent = "CONECTAR ARDUINO (Web Serial)";
+          estadoEl.textContent = "No se pudo conectar: " + error.message;
+        }
+      }
+
+      async function desconectar() {
+        conectado = false;
+        listo = false;
+        try {
+          if (puerto) await puerto.close();
+        } catch (error) {
+          // El puerto pudo haberse desconectado físicamente.
+        }
+        puerto = null;
+        conectarBtn.textContent = "CONECTAR ARDUINO (Web Serial)";
+        estadoEl.textContent = "Desconectado.";
+      }
+
+      conectarBtn.addEventListener("click", function () {
+        if (conectado) {
+          desconectar();
+        } else {
+          conectar();
+        }
       });
+
+      if (navigator.serial) {
+        navigator.serial.addEventListener("disconnect", function (event) {
+          if (event.target !== puerto) return;
+          conectado = false;
+          listo = false;
+          puerto = null;
+          conectarBtn.textContent = "CONECTAR ARDUINO (Web Serial)";
+          estadoEl.textContent = "Arduino desconectado. Vuelve a conectarlo.";
+        });
+      }
 
       if (typeof Protobject !== "undefined" && Protobject.Core) {
         Protobject.Core.onReceived(function (data) {
@@ -95,6 +226,9 @@
           aplicarAngulo(data.angulo);
         });
       }
+
+      actualizarDiagnostico();
+      aplicarAngulo(0);
     })();
   </script>
 </body>
