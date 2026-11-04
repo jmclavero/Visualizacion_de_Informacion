@@ -58,9 +58,10 @@
 <body>
   <h1>Servo 180° · velocímetro del alza</h1>
   <p class="hint">
-    Servo en el <strong>pin 6</strong> (señal), 5 V y GND común. La placa ya
-    tiene el sketch de control: responde <code>OK A&lt;ángulo&gt;</code>. Conecta
-    por Web Serial desde este computador y elige el puerto del Arduino.
+    Servo en el <strong>pin 6</strong> (señal), 5 V y GND común. Al conectar
+    queda en <strong>neutro (detenido)</strong> y solo se mueve cuando la
+    visualización envía un ángulo. La placa responde
+    <code>OK A&lt;ángulo&gt;</code>.
   </p>
 
   <div class="gauge">
@@ -86,6 +87,7 @@
       var lector = null;
       var lecturaPromesa = null;
       var ultimoAngulo = 0;
+      var neutro = 90;
       var colaEscritura = Promise.resolve();
       var logLineas = [];
       var temporizadorListo = null;
@@ -161,8 +163,8 @@
         }
         listo = true;
         actualizarBotones();
-        enviarSerial("A" + Math.round(ultimoAngulo) + "\n");
-        estadoEl.textContent = "Arduino conectado. Esperando alzas…";
+        mostrarAngulo(neutro);
+        estadoEl.textContent = "Arduino en neutro. Esperando la señal de la página…";
       }
 
       function enviarSerial(texto) {
@@ -192,7 +194,13 @@
               var texto = new TextDecoder().decode(resultado.value).trim();
               if (texto) {
                 log("Arduino: " + texto);
-                if (texto.indexOf("Listo") !== -1) marcarListo();
+                if (texto.indexOf("Listo") !== -1) {
+                  var m = texto.match(/Listo\s+(\d+)/);
+                  if (m) {
+                    neutro = Math.max(0, Math.min(180, Number(m[1])));
+                  }
+                  marcarListo();
+                }
               }
             }
           }
@@ -220,14 +228,17 @@
         actualizarBotones();
       }
 
-      function aplicarAngulo(angulo) {
+      function mostrarAngulo(angulo) {
         var a = Math.max(0, Math.min(180, Number(angulo) || 0));
         ultimoAngulo = a;
         valorEl.textContent = Math.round(a) + "°";
         agujaEl.style.transform = "rotate(" + (a - 90) + "deg)";
+      }
 
+      function aplicarAngulo(angulo) {
+        mostrarAngulo(angulo);
         if (conectado && listo) {
-          enviarSerial("A" + Math.round(a) + "\n");
+          enviarSerial("A" + Math.round(ultimoAngulo) + "\n");
         }
       }
 
@@ -297,11 +308,14 @@
       async function probarServo() {
         if (!conectado || !listo) return;
         probarBtn.disabled = true;
-        log("Prueba de servo: 0° → 90° → 180° → 0°");
+        log("Prueba de servo: neutro → 45° → 135° → neutro");
 
-        var pasos = [0, 90, 180, 0];
-        for (var i = 0; i < pasos.length; i++) {
-          enviarSerial("A" + pasos[i] + "\n");
+        var comandos = ["N", "A45", "A135", "N"];
+        var angulos = [neutro, 45, 135, neutro];
+
+        for (var i = 0; i < comandos.length; i++) {
+          enviarSerial(comandos[i] + "\n");
+          mostrarAngulo(angulos[i]);
           await new Promise(function (resolve) { setTimeout(resolve, 800); });
         }
 
@@ -330,6 +344,14 @@
       if (typeof Protobject !== "undefined" && Protobject.Core) {
         Protobject.Core.onReceived(function (data) {
           if (!data || data.tipo !== "servo") return;
+
+          if (data.reposo) {
+            log("Protobject: reposo");
+            mostrarAngulo(neutro);
+            if (conectado && listo) enviarSerial("N\n");
+            return;
+          }
+
           log("Protobject: servo " + data.angulo);
           aplicarAngulo(data.angulo);
         });

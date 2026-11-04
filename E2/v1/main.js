@@ -696,8 +696,8 @@ function volverSwarm() {
   indiceCursorDetalle = 0;
   clearTimeout(timerDetalleSwarm);
 
-  // Servo en reposo (aguja a la izquierda).
-  enviarProtobject({ tipo: "servo", angulo: 0 }, "arduino.html");
+  // Servo en reposo: el sketch decide el neutro (90 si es continuo, 0 si es de 180°).
+  enviarProtobject({ tipo: "servo", reposo: true }, "arduino.html");
 
   document
     .querySelectorAll("#grafico-swarm .punto-seleccionado")
