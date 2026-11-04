@@ -58,9 +58,9 @@
 <body>
   <h1>Servo 180° · velocímetro del alza</h1>
   <p class="hint">
-    Servo en el <strong>pin 6</strong> (señal), 5 V y GND común. Al conectar
-    queda en <strong>neutro (detenido)</strong> y solo se mueve cuando la
-    visualización envía un ángulo. La placa responde
+    Servo de <strong>180°</strong> en el <strong>pin 6</strong> (señal), 5 V y
+    GND común. Al conectar queda en <strong>0° (izquierda)</strong> y solo se
+    mueve cuando la visualización envía un ángulo. La placa responde
     <code>OK A&lt;ángulo&gt;</code>.
   </p>
 
@@ -87,7 +87,7 @@
       var lector = null;
       var lecturaPromesa = null;
       var ultimoAngulo = 0;
-      var neutro = 90;
+      var neutro = 0;
       var colaEscritura = Promise.resolve();
       var logLineas = [];
       var temporizadorListo = null;
@@ -164,7 +164,8 @@
         listo = true;
         actualizarBotones();
         mostrarAngulo(neutro);
-        estadoEl.textContent = "Arduino en neutro. Esperando la señal de la página…";
+        estadoEl.textContent =
+          "Arduino en " + Math.round(neutro) + "°. Esperando la señal de la página…";
       }
 
       function enviarSerial(texto) {

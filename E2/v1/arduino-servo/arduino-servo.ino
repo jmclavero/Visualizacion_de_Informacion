@@ -17,19 +17,16 @@
 //   OK A<ángulo>
 //   OK N <neutro>
 //
-// IMPORTANTE:
-//   SERVO_CONTINUO = true  -> servo de rotación continua (360°).
-//                             El neutro es 90 (detenido) y la magnitud se
-//                             traduce en velocidad (90..150).
-//   SERVO_CONTINUO = false -> servo de posición (180°).
-//                             El neutro es 0 y el ángulo es la posición.
+// MODO ACTUAL: servo de posición de 180°.
+//   Al arrancar va a 0° (izquierda) y espera las órdenes de la página.
 //
-// Si tu servo es de 180° y quieres que la aguja se quede a la izquierda,
-// cambia SERVO_CONTINUO a false y vuelve a subir el sketch.
+// Si algún día usas un servo de rotación continua (360°), cambia
+// SERVO_CONTINUO a true: el neutro será 90 (detenido) y la magnitud se
+// traducirá en velocidad (90..150). Con false, el ángulo es la posición.
 
 #include <Servo.h>
 
-const bool SERVO_CONTINUO = true;
+const bool SERVO_CONTINUO = false;
 
 Servo servo;
 const int PIN_SERVO = 6;
