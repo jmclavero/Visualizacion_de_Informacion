@@ -2,46 +2,52 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>Botones · Protobject</title>
   <script src="https://app.protobject.com/framework/p.js"></script>
   <script src="config.js"></script>
   <style>
     :root { color-scheme: light; }
     * { box-sizing: border-box; }
+    html, body { height: 100%; }
     body {
-      margin: 0; min-height: 100vh; display: flex; flex-direction: column;
-      align-items: center; justify-content: center; gap: 20px; padding: 24px;
-      background: #f9f9f7; color: #0b0b0b;
-      font-family: system-ui, -apple-system, "Segoe UI", sans-serif; text-align: center;
+      margin: 0;
+      min-height: 100vh;
+      min-height: 100dvh;
+      overflow: hidden;
+      background: #0b0b0b;
+      overscroll-behavior: none;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
     }
-    h1 { margin: 0; font-size: 1.6rem; }
-    .hint { margin: 0; max-width: 34ch; color: #52514e; line-height: 1.45; }
-    .botones { display: flex; flex-direction: column; gap: 16px; width: min(320px, 90vw); }
+    .botones {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100vh;
+      height: 100dvh;
+    }
     button {
-      border: 0; border-radius: 18px; padding: 26px 20px; font: inherit;
-      font-size: 1.35rem; font-weight: 700; cursor: pointer; color: #fff;
-      background: #52514e; box-shadow: 0 6px 18px rgba(11,11,11,.18);
-      transition: transform .1s ease, filter .1s ease;
+      flex: 1 1 50%;
+      width: 100%;
+      border: 0;
+      border-radius: 0;
+      padding: 0;
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      transition: filter 0.1s ease;
     }
-    button:active { transform: scale(.97); filter: brightness(.9); }
+    button:active { filter: brightness(0.9); }
     #arriba { background: #1baf7a; }
     #abajo { background: #2a78d6; }
   </style>
 </head>
 <body>
-  <h1>Botones</h1>
-  <p class="hint">
-    Navega los puntos de la última categoría activada en el beeswarm.
-    El primer toque parte en el punto más bajo.
-  </p>
-
   <div class="botones">
-    <button id="arriba" type="button">▲ Arriba</button>
-    <button id="abajo" type="button">▼ Abajo</button>
+    <button id="arriba" type="button" aria-label="Arriba"></button>
+    <button id="abajo" type="button" aria-label="Abajo"></button>
   </div>
-
-  <p class="hint" id="estado">Listo.</p>
+  <p id="estado" hidden></p>
 
   <script>
     (function () {
