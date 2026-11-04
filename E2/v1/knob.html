@@ -87,10 +87,11 @@
 
   <script>
     (function () {
-      // El giroscopio y la brújula tienen signos opuestos:
-      // - giroscopio: el giro horario da tasa negativa.
-      // - brújula: el giro horario aumenta alpha.
-      // Con estos valores, el giro horario suma en ambos casos.
+      // El giroscopio y la brújula tienen convenciones opuestas.
+      // La fórmula de orientación usa el eje z real del teléfono:
+      //   ωz = dα·cos(β) − dγ
+      // y el signo se elige para que el giro horario (visto desde la
+      // pantalla) sume en horizontal y en vertical.
       var SENTIDO_GIRO = -1;
       var SENTIDO_ORIENTACION = 1;
       var UMBRAL_ENVIO = 1;      // grados mínimos para enviar al PC
@@ -123,8 +124,10 @@
       var acumulado = 0;
       var ultimoEnviado = null;
       var alphaAnterior = null;
+      var gammaAnterior = null;
       var ultimoTiempoGyro = null;
       var ultimaTasa = null;
+      var ultimaOmegaZ = null;
       var tasaFiltrada = 0;
       var giroscopioActivo = false;
       var ultimoEventoGyro = 0;
@@ -147,6 +150,7 @@
           "  β " + fmt(ultimoBeta) +
           "  γ " + fmt(ultimoGamma) +
           "  ·  giro " + fmt(ultimaTasa) + " °/s" +
+          "  ·  ωz " + fmt(ultimaOmegaZ) +
           "  ·  gyro " + eventosGyro +
           "  ·  orient " + eventosOrientacion;
       }
@@ -190,6 +194,7 @@
         ultimoTiempoGyro = null;
         tasaFiltrada = 0;
         alphaAnterior = ultimoAlpha;
+        gammaAnterior = ultimoGamma;
         actualizar();
         estadoEl.textContent = "Recalibrado a 0°. Gira el teléfono.";
       }
@@ -212,6 +217,7 @@
         ultimoTiempoGyro = null;
         tasaFiltrada = 0;
         alphaAnterior = ultimoAlpha;
+        gammaAnterior = ultimoGamma;
         actualizar();
         actualizarBotonInvertir();
         estadoEl.textContent =
@@ -264,19 +270,33 @@
 
         usandoOrientacion = true;
 
-        if (event.alpha === null || event.alpha === undefined) {
+        if (
+          event.alpha === null || event.alpha === undefined ||
+          event.gamma === null || event.gamma === undefined
+        ) {
           actualizarDiagnostico();
           return;
         }
 
-        if (alphaAnterior !== null) {
-          var delta = event.alpha - alphaAnterior;
-          if (delta > 180) delta -= 360;
-          if (delta < -180) delta += 360;
-          acumulado += delta * signoOrientacion();
+        if (alphaAnterior !== null && gammaAnterior !== null) {
+          var dAlpha = event.alpha - alphaAnterior;
+          if (dAlpha > 180) dAlpha -= 360;
+          if (dAlpha < -180) dAlpha += 360;
+
+          var dGamma = event.gamma - gammaAnterior;
+          if (dGamma > 180) dGamma -= 360;
+          if (dGamma < -180) dGamma += 360;
+
+          // Rotación real alrededor del eje z del teléfono.
+          // En horizontal domina dAlpha; en vertical domina -dGamma.
+          var betaRad = ((event.beta || 0) * Math.PI) / 180;
+          var omegaZ = dAlpha * Math.cos(betaRad) - dGamma;
+          ultimaOmegaZ = omegaZ;
+          acumulado += omegaZ * signoOrientacion();
         }
 
         alphaAnterior = event.alpha;
+        gammaAnterior = event.gamma;
         actualizar();
       }
 
@@ -286,6 +306,7 @@
           giroscopioActivo = false;
           usandoOrientacion = true;
           alphaAnterior = ultimoAlpha;
+          gammaAnterior = ultimoGamma;
           actualizar();
         }
       }, 500);
@@ -323,6 +344,7 @@
       if (screen.orientation && screen.orientation.addEventListener) {
         screen.orientation.addEventListener("change", function () {
           alphaAnterior = ultimoAlpha;
+        gammaAnterior = ultimoGamma;
           ultimoTiempoGyro = null;
         });
       }
