@@ -11,50 +11,51 @@
     * { box-sizing: border-box; }
     body {
       margin: 0; min-height: 100vh; display: flex; flex-direction: column;
-      align-items: center; justify-content: center; gap: 18px; padding: 24px;
+      align-items: center; justify-content: center; gap: 16px; padding: 20px;
       background: #f9f9f7; color: #0b0b0b;
       font-family: system-ui, -apple-system, "Segoe UI", sans-serif; text-align: center;
     }
     .app {
       display: flex; flex-direction: column; align-items: center;
-      justify-content: center; gap: 16px; width: 100%; max-width: 900px;
+      justify-content: center; gap: 14px; width: 100%; max-width: 900px;
     }
-    h1 { margin: 0; font-size: 1.6rem; }
-    .hint { margin: 0; max-width: 40ch; color: #52514e; line-height: 1.45; }
-    .lectura { font-size: 4rem; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
-    .fila { display: flex; gap: 18px; font-size: 1.1rem; color: #52514e; }
-    .controles { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+    h1 { margin: 0; font-size: 1.5rem; }
+    .hint { margin: 0; max-width: 44ch; color: #52514e; line-height: 1.45; font-size: .92rem; }
+    .lectura { font-size: 3.6rem; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+    .fila { display: flex; gap: 18px; font-size: 1rem; color: #52514e; }
     button {
-      border: 0; border-radius: 999px; padding: 14px 24px; font: inherit;
-      font-size: 1rem; font-weight: 700; cursor: pointer; color: #fff;
-      background: #2a78d6; box-shadow: 0 6px 18px rgba(42,120,214,.3);
+      border: 0; border-radius: 999px; padding: 12px 22px; font: inherit;
+      font-size: .95rem; font-weight: 700; cursor: pointer; color: #fff;
+      background: #52514e;
     }
-    button.secundario { background: #52514e; box-shadow: none; }
-    button:disabled { opacity: .5; cursor: default; }
     .oculto { display: none; }
-    .estado { margin: 0; color: #898781; font-size: .9rem; max-width: 40ch; }
+    .estado { margin: 0; color: #898781; font-size: .9rem; max-width: 44ch; }
+    .diag {
+      margin: 0; color: #898781; font-size: .68rem; line-height: 1.5;
+      font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+      max-width: 90vw; word-break: break-word;
+    }
 
     /* Si el teléfono está acostado pero el navegador sigue en vertical,
-       rotamos toda la interfaz para que se lea en horizontal. */
+       giramos la interfaz para que se lea de izquierda a derecha. */
     @media (orientation: portrait) {
       body { overflow: hidden; }
       .app {
         position: fixed; top: 50%; left: 50%;
         width: 100vh; height: 100vw; max-width: none;
-        padding: 12px;
-        gap: 12px;
-        transform: translate(-50%, -50%) rotate(var(--giro, 90deg));
+        padding: 10px; gap: 10px;
+        transform: translate(-50%, -50%) rotate(90deg);
       }
-      .app h1 { font-size: 1.2rem; }
-      .app .lectura { font-size: 3rem; }
-      .app .hint { font-size: .85rem; max-width: 52ch; }
+      .app h1 { font-size: 1.1rem; }
+      .app .lectura { font-size: 2.6rem; }
+      .app .hint { font-size: .8rem; max-width: 56ch; }
     }
 
-    @media (orientation: landscape) and (max-height: 480px) {
-      body { gap: 10px; padding: 12px; }
-      h1 { font-size: 1.2rem; }
-      .lectura { font-size: 2.8rem; }
-      .hint { font-size: .85rem; }
+    @media (orientation: landscape) and (max-height: 460px) {
+      body { gap: 8px; padding: 10px; }
+      h1 { font-size: 1.1rem; }
+      .lectura { font-size: 2.4rem; }
+      .hint { font-size: .8rem; }
     }
   </style>
 </head>
@@ -62,47 +63,67 @@
   <div class="app">
     <h1>Perilla</h1>
     <p class="hint">
-      Acuesta el teléfono con la pantalla hacia arriba (horizontal) y gíralo
-      sobre la mesa como una perilla. Una vuelta completa recorre 1920 → 2021
-      en el detalle del punto.
+      Acuesta el teléfono con la pantalla hacia arriba y en horizontal. Gíralo
+      sobre la mesa como una perilla: una vuelta completa recorre 1920 → 2021.
     </p>
 
-    <div class="lectura" id="valor">—</div>
+    <div class="lectura" id="valor">0°</div>
     <div class="fila">
-      <span id="sentido">—</span>
+      <span id="sentido">↻ Horario</span>
       <span id="vueltas">0 vueltas</span>
     </div>
 
-    <div class="controles">
-      <button id="pantalla">PANTALLA COMPLETA HORIZONTAL</button>
-      <button id="girar" class="secundario">GIRAR 90°</button>
-      <button id="calibrar" class="secundario">CALIBRAR COMO POSICIÓN 0</button>
-      <button id="permiso" class="oculto">PEDIR PERMISO DE ORIENTACIÓN</button>
-    </div>
+    <button id="recalibrar" type="button">RECALIBRAR A 0°</button>
+    <button id="permiso" type="button" class="oculto">PEDIR PERMISO DE SENSORES</button>
 
-    <p class="estado" id="estado">Esperando lectura del sensor…</p>
+    <p class="estado" id="estado">Esperando sensores…</p>
+    <p class="diag" id="diag">α — β — γ — · giro — °/s · gyro 0 · orient 0</p>
   </div>
 
   <script>
     (function () {
-      var SENTIDO = -1;        // cambia a 1 si el giro queda invertido
-      var UMBRAL_GRADOS = 1;   // cambio mínimo para enviar al PC
+      var SENTIDO = -1;          // cambia a 1 si el giro queda invertido
+      var UMBRAL_ENVIO = 1;      // grados mínimos para enviar al PC
+      var DEADBAND = 0.6;        // °/s: ignora ruido del giroscopio
 
       var valorEl = document.getElementById("valor");
       var sentidoEl = document.getElementById("sentido");
       var vueltasEl = document.getElementById("vueltas");
       var estadoEl = document.getElementById("estado");
+      var diagEl = document.getElementById("diag");
+      var recalibrarBtn = document.getElementById("recalibrar");
       var permisoBtn = document.getElementById("permiso");
-      var calibrarBtn = document.getElementById("calibrar");
-      var pantallaBtn = document.getElementById("pantalla");
-      var girarBtn = document.getElementById("girar");
 
-      var alphaAnterior = null;
       var acumulado = 0;
-      var origen = null;
-      var anguloPrevio = null;
-      var giro = 90;
+      var ultimoEnviado = null;
+      var alphaAnterior = null;
+      var ultimoTiempoGyro = null;
+      var ultimaTasa = null;
+      var tasaFiltrada = 0;
+      var giroscopioActivo = false;
+      var ultimoEventoGyro = 0;
+      var eventosGyro = 0;
+      var eventosOrientacion = 0;
+      var ultimoAlpha = null;
+      var ultimoBeta = null;
+      var ultimoGamma = null;
+      var usandoOrientacion = false;
       var wakeLock = null;
+
+      function fmt(v) {
+        if (v === null || v === undefined || isNaN(v)) return "—";
+        return Number(v).toFixed(1);
+      }
+
+      function actualizarDiagnostico() {
+        diagEl.textContent =
+          "α " + fmt(ultimoAlpha) +
+          "  β " + fmt(ultimoBeta) +
+          "  γ " + fmt(ultimoGamma) +
+          "  ·  giro " + fmt(ultimaTasa) + " °/s" +
+          "  ·  gyro " + eventosGyro +
+          "  ·  orient " + eventosOrientacion;
+      }
 
       function enviar(mensaje) {
         if (typeof Protobject !== "undefined" && Protobject.Core) {
@@ -110,11 +131,114 @@
         }
       }
 
-      function reiniciarReferencia() {
-        // Evita un salto falso cuando el navegador cambia de orientación.
-        alphaAnterior = null;
-        anguloPrevio = null;
+      function actualizar() {
+        valorEl.textContent = Math.round(acumulado) + "°";
+        sentidoEl.textContent = acumulado >= 0 ? "↻ Horario" : "↺ Antihorario";
+
+        var vueltas = Math.trunc(acumulado / 360);
+        vueltasEl.textContent =
+          vueltas + (Math.abs(vueltas) === 1 ? " vuelta" : " vueltas");
+
+        if (giroscopioActivo) {
+          estadoEl.textContent = "Leyendo el giroscopio…";
+        } else if (usandoOrientacion) {
+          estadoEl.textContent = "Leyendo la orientación…";
+        } else {
+          estadoEl.textContent = "Esperando sensores…";
+        }
+
+        actualizarDiagnostico();
+
+        if (
+          ultimoEnviado === null ||
+          Math.abs(acumulado - ultimoEnviado) >= UMBRAL_ENVIO
+        ) {
+          ultimoEnviado = acumulado;
+          enviar({ tipo: "perilla", angulo: acumulado });
+        }
       }
+
+      function recalibrar() {
+        acumulado = 0;
+        ultimoEnviado = null;
+        ultimoTiempoGyro = null;
+        tasaFiltrada = 0;
+        alphaAnterior = ultimoAlpha;
+        actualizar();
+        estadoEl.textContent = "Recalibrado a 0°. Gira el teléfono.";
+      }
+
+      // ---------- Giroscopio: fuente principal ----------
+      function alMover(event) {
+        eventosGyro++;
+
+        var tasa = event.rotationRate ? event.rotationRate.alpha : null;
+        ultimaTasa = tasa;
+
+        if (tasa === null || tasa === undefined) {
+          actualizarDiagnostico();
+          return;
+        }
+
+        var ahora = performance.now();
+        giroscopioActivo = true;
+        usandoOrientacion = false;
+        ultimoEventoGyro = ahora;
+
+        if (ultimoTiempoGyro !== null) {
+          var dt = (ahora - ultimoTiempoGyro) / 1000;
+          if (dt > 0 && dt < 0.5) {
+            // Suavizado suave para no acumular ruido.
+            tasaFiltrada = tasaFiltrada * 0.7 + tasa * 0.3;
+            var tasaUtil = Math.abs(tasaFiltrada) < DEADBAND ? 0 : tasaFiltrada;
+            acumulado += tasaUtil * dt * SENTIDO;
+          }
+        }
+
+        ultimoTiempoGyro = ahora;
+        actualizar();
+      }
+
+      // ---------- Orientación: respaldo ----------
+      function alOrientar(event) {
+        eventosOrientacion++;
+        ultimoAlpha = event.alpha;
+        ultimoBeta = event.beta;
+        ultimoGamma = event.gamma;
+
+        // Si el giroscopio está entregando datos, no duplicamos el giro.
+        if (giroscopioActivo) {
+          actualizarDiagnostico();
+          return;
+        }
+
+        usandoOrientacion = true;
+
+        if (event.alpha === null || event.alpha === undefined) {
+          actualizarDiagnostico();
+          return;
+        }
+
+        if (alphaAnterior !== null) {
+          var delta = event.alpha - alphaAnterior;
+          if (delta > 180) delta -= 360;
+          if (delta < -180) delta += 360;
+          acumulado += delta * SENTIDO;
+        }
+
+        alphaAnterior = event.alpha;
+        actualizar();
+      }
+
+      // Si el giroscopio deja de entregar datos, volver a orientación.
+      setInterval(function () {
+        if (giroscopioActivo && performance.now() - ultimoEventoGyro > 1500) {
+          giroscopioActivo = false;
+          usandoOrientacion = true;
+          alphaAnterior = ultimoAlpha;
+          actualizar();
+        }
+      }, 500);
 
       async function pedirWakeLock() {
         try {
@@ -122,89 +246,12 @@
             wakeLock = await navigator.wakeLock.request("screen");
           }
         } catch (error) {
-          // Sin wake lock: la demo sigue funcionando.
+          // Sin wake lock la demo sigue funcionando.
         }
       }
 
-      function handler(event) {
-        var alpha = event.alpha;
-        if (alpha === null || alpha === undefined) return;
-
-        // La perilla solo tiene sentido con el teléfono plano, pantalla arriba.
-        var beta = event.beta;
-        var gamma = event.gamma;
-        var plano = true;
-        if (
-          beta !== null && beta !== undefined &&
-          gamma !== null && gamma !== undefined
-        ) {
-          plano = Math.abs(beta) < 30 && Math.abs(gamma) < 30;
-        }
-
-        if (!plano) {
-          alphaAnterior = null;
-          if (origen !== null) {
-            estadoEl.textContent = "Acuesta el teléfono con la pantalla hacia arriba.";
-          }
-          return;
-        }
-
-        if (alphaAnterior !== null) {
-          var delta = alpha - alphaAnterior;
-          if (delta > 180) delta -= 360;
-          if (delta < -180) delta += 360;
-          acumulado += delta * SENTIDO;
-        }
-        alphaAnterior = alpha;
-
-        if (origen === null) {
-          valorEl.textContent = "—";
-          estadoEl.textContent = "Toca CALIBRAR para fijar la posición 0.";
-          return;
-        }
-
-        var angulo = acumulado - origen;
-        var vueltas = Math.trunc(angulo / 360);
-
-        valorEl.textContent = Math.round(angulo) + "°";
-        sentidoEl.textContent = angulo >= 0 ? "↻ Horario" : "↺ Antihorario";
-        vueltasEl.textContent = vueltas + (Math.abs(vueltas) === 1 ? " vuelta" : " vueltas");
-        estadoEl.textContent = "Enviando al computador…";
-
-        if (anguloPrevio !== null && Math.abs(angulo - anguloPrevio) < UMBRAL_GRADOS) {
-          return;
-        }
-        anguloPrevio = angulo;
-        enviar({ tipo: "perilla", angulo: angulo });
-      }
-
-      pantallaBtn.addEventListener("click", async function () {
-        try {
-          if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
-            await document.documentElement.requestFullscreen();
-          }
-          if (screen.orientation && screen.orientation.lock) {
-            await screen.orientation.lock("landscape");
-          }
-          estadoEl.textContent = "Pantalla horizontal. Acuesta el teléfono y calibra.";
-        } catch (error) {
-          estadoEl.textContent =
-            "No se pudo bloquear la orientación. Usa GIRAR 90° si hace falta.";
-        }
-        pedirWakeLock();
-      });
-
-      girarBtn.addEventListener("click", function () {
-        giro = giro === 90 ? -90 : 90;
-        document.documentElement.style.setProperty("--giro", giro + "deg");
-        estadoEl.textContent =
-          "Interfaz girada " + giro + "°. Ajusta según cómo apoyes el teléfono.";
-      });
-
-      calibrarBtn.addEventListener("click", function () {
-        origen = acumulado;
-        anguloPrevio = null;
-        estadoEl.textContent = "Calibrado. Gira el teléfono.";
+      recalibrarBtn.addEventListener("click", function () {
+        recalibrar();
         pedirWakeLock();
       });
 
@@ -212,46 +259,56 @@
       if (typeof Protobject !== "undefined" && Protobject.Core) {
         Protobject.Core.onReceived(function (mensaje) {
           if (mensaje && mensaje.tipo === "reset") {
-            origen = acumulado;
-            anguloPrevio = null;
+            recalibrar();
             estadoEl.textContent = "Reiniciado por el computador. Gira desde aquí.";
           }
         });
       }
 
       if (screen.orientation && screen.orientation.addEventListener) {
-        screen.orientation.addEventListener("change", reiniciarReferencia);
+        screen.orientation.addEventListener("change", function () {
+          alphaAnterior = ultimoAlpha;
+          ultimoTiempoGyro = null;
+        });
       }
-      window.addEventListener("orientationchange", reiniciarReferencia);
-
-      document.addEventListener("visibilitychange", function () {
-        if (document.visibilityState === "visible") pedirWakeLock();
-      });
 
       // iOS exige permiso desde un toque del usuario.
-      if (
-        typeof DeviceOrientationEvent !== "undefined" &&
-        typeof DeviceOrientationEvent.requestPermission === "function"
-      ) {
+      var necesitaPermiso =
+        (typeof DeviceOrientationEvent !== "undefined" &&
+          typeof DeviceOrientationEvent.requestPermission === "function") ||
+        (typeof DeviceMotionEvent !== "undefined" &&
+          typeof DeviceMotionEvent.requestPermission === "function");
+
+      if (necesitaPermiso) {
         permisoBtn.classList.remove("oculto");
-        permisoBtn.addEventListener("click", function () {
-          DeviceOrientationEvent.requestPermission()
-            .then(function (respuesta) {
-              if (respuesta === "granted") {
-                window.addEventListener("deviceorientation", handler, true);
-                permisoBtn.classList.add("oculto");
-                estadoEl.textContent = "Sensor activo. Toca CALIBRAR.";
-              } else {
-                estadoEl.textContent = "Permiso de orientación denegado.";
-              }
-            })
-            .catch(function (error) {
-              estadoEl.textContent = "Error: " + error.message;
-            });
+        permisoBtn.addEventListener("click", async function () {
+          try {
+            if (
+              typeof DeviceOrientationEvent !== "undefined" &&
+              typeof DeviceOrientationEvent.requestPermission === "function"
+            ) {
+              await DeviceOrientationEvent.requestPermission();
+            }
+            if (
+              typeof DeviceMotionEvent !== "undefined" &&
+              typeof DeviceMotionEvent.requestPermission === "function"
+            ) {
+              await DeviceMotionEvent.requestPermission();
+            }
+            window.addEventListener("devicemotion", alMover, true);
+            window.addEventListener("deviceorientation", alOrientar, true);
+            permisoBtn.classList.add("oculto");
+            estadoEl.textContent = "Sensores activos.";
+          } catch (error) {
+            estadoEl.textContent = "Permiso de sensores denegado.";
+          }
         });
       } else {
-        window.addEventListener("deviceorientation", handler, true);
+        window.addEventListener("devicemotion", alMover, true);
+        window.addEventListener("deviceorientation", alOrientar, true);
       }
+
+      actualizar();
     })();
   </script>
 </body>
