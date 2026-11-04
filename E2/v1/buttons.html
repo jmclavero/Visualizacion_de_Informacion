@@ -29,9 +29,17 @@
     button {
       flex: 1 1 50%;
       width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35em;
       border: 0;
       border-radius: 0;
       padding: 0;
+      color: #fff;
+      font: inherit;
+      font-size: clamp(1.6rem, 6vw, 3.2rem);
+      font-weight: 700;
       cursor: pointer;
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
@@ -44,8 +52,8 @@
 </head>
 <body>
   <div class="botones">
-    <button id="arriba" type="button" aria-label="Arriba"></button>
-    <button id="abajo" type="button" aria-label="Abajo"></button>
+    <button id="arriba" type="button">▲ Arriba</button>
+    <button id="abajo" type="button">▼ Abajo</button>
   </div>
   <p id="estado" hidden></p>
 
