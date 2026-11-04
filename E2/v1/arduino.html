@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Arduino · servo 180°</title>
+  <script src="https://app.protobject.com/framework/p.js"></script>
+  <script src="config.js"></script>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 16px; padding: 24px;
+      background: #f9f9f7; color: #0b0b0b;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif; text-align: center;
+    }
+    h1 { margin: 0; font-size: 1.5rem; }
+    .hint { margin: 0; max-width: 44ch; color: #52514e; line-height: 1.45; font-size: .92rem; }
+    .gauge {
+      position: relative; width: min(340px, 88vw); height: 180px;
+      border-radius: 340px 340px 0 0; background: #fcfcfb;
+      border: 1px solid rgba(11,11,11,.1); overflow: hidden;
+    }
+    .gauge::after {
+      content: ""; position: absolute; left: 50%; bottom: 0;
+      width: 16px; height: 16px; margin-left: -8px; border-radius: 50%;
+      background: #0b0b0b;
+    }
+    .aguja {
+      position: absolute; left: 50%; bottom: 0; width: 3px; height: 150px;
+      margin-left: -1.5px; background: #e34948; transform-origin: 50% 100%;
+      transform: rotate(-90deg); transition: transform .35s ease;
+    }
+    .valor { font-size: 2.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    button {
+      border: 0; border-radius: 12px; padding: 14px 22px; font: inherit;
+      font-size: 1rem; font-weight: 700; cursor: pointer; color: #fff;
+      background: #2a78d6;
+    }
+    .estado { margin: 0; color: #52514e; font-size: .95rem; min-height: 1.4em; }
+  </style>
+</head>
+<body>
+  <h1>Servo 180° · velocímetro del alza</h1>
+  <p class="hint">
+    Carga en el Arduino el sketch genérico de Protobject y conecta el servo al
+    <strong>pin 6</strong> (señal), 5 V externo y tierra común.
+  </p>
+
+  <div class="gauge">
+    <div class="aguja" id="aguja"></div>
+  </div>
+  <div class="valor" id="valor">0°</div>
+  <p class="estado" id="estado">Sin conectar.</p>
+
+  <button id="conectar" type="button">CONECTAR ARDUINO (Web Serial)</button>
+
+  <script>
+    (function () {
+      var PIN_SERVO = 6; // cable amarillo (señal) al pin 6
+      var conectado = false;
+      var estadoEl = document.getElementById("estado");
+      var valorEl = document.getElementById("valor");
+      var agujaEl = document.getElementById("aguja");
+
+      function aplicarAngulo(angulo) {
+        var a = Math.max(0, Math.min(180, Number(angulo) || 0));
+        valorEl.textContent = Math.round(a) + "°";
+        agujaEl.style.transform = "rotate(" + (a - 90) + "deg)";
+        if (conectado && typeof Protobject !== "undefined" && Protobject.Arduino) {
+          Protobject.Arduino.servoWrite({ pin: PIN_SERVO, value: Math.round(a) });
+        }
+      }
+
+      document.getElementById("conectar").addEventListener("click", function () {
+        if (typeof Protobject === "undefined" || !Protobject.Arduino) {
+          estadoEl.textContent = "Protobject.Arduino no está disponible.";
+          return;
+        }
+        estadoEl.textContent = "Pidiendo permiso Web Serial…";
+        Protobject.Arduino.start()
+          .then(function () {
+            conectado = true;
+            estadoEl.textContent = "Arduino conectado. Esperando alzas…";
+          })
+          .catch(function (error) {
+            estadoEl.textContent = "No se pudo conectar: " + error.message;
+          });
+      });
+
+      if (typeof Protobject !== "undefined" && Protobject.Core) {
+        Protobject.Core.onReceived(function (data) {
+          if (!data || data.tipo !== "servo") return;
+          aplicarAngulo(data.angulo);
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

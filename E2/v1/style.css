@@ -1,0 +1,674 @@
+:root {
+  color-scheme: light;
+  --surface-1: #fcfcfb;
+  --page: #f9f9f7;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #898781;
+  --gridline: #e1e0d9;
+  --baseline: #c3c2b7;
+  --border: rgba(11, 11, 11, 0.1);
+
+  --cat-teleserie: #2a78d6;
+  --cat-musica: #eb6834;
+  --cat-otra: #1baf7a;
+  --cat-no-tv: #9467bd;
+  --cat-sin-identificar: #898781;
+
+  --bebe-tv: var(--cat-teleserie);
+  --bebe-gris: #c3c2b7;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+body.intro-activa {
+  overflow: hidden;
+}
+
+#overview {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: safe center;
+  background: var(--page);
+  overflow-x: hidden;
+  overflow-y: auto;
+  will-change: transform;
+  transform: translateY(0);
+  transition: transform 0.6s ease-in-out;
+}
+
+#overview.overview-salida {
+  transform: translateY(-100%);
+  transition: transform 0.6s ease-in-out;
+}
+
+.overview-contenido {
+  width: 100%;
+  max-width: 720px;
+  max-height: 100%;
+  padding: clamp(56px, 7vh, 64px) 24px clamp(16px, 4vh, 36px);
+  text-align: center;
+}
+
+.overview-eyebrow {
+  margin: 0 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--cat-teleserie);
+}
+
+.overview-titulo {
+  margin: 0 0 clamp(6px, 1.4vh, 12px);
+  font-size: clamp(2.5rem, min(5vw, 6.5vh), 4.1rem);
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--text-primary);
+}
+
+.overview-subtitulo {
+  margin: 0 auto clamp(8px, 1.6vh, 18px);
+  max-width: 62ch;
+  font-size: clamp(1rem, min(1.9vw, 2.3vh), 1.2rem);
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.bebes-visual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(14px, 3vw, 44px);
+  margin: 0 auto clamp(8px, 1.6vh, 18px);
+}
+
+.bebes-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: clamp(3px, 0.6vh, 6px);
+  width: min(460px, 50vw, 42vh);
+  flex: 0 0 auto;
+}
+
+.bebe {
+  color: var(--bebe-gris);
+  transition: color 0.35s ease;
+}
+
+.bebe svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  fill: currentColor;
+}
+
+.bebe-tv {
+  color: var(--bebe-tv);
+}
+
+/* Las dos figuras grandes que flanquean la grilla: son la leyenda, pero
+   hechas protagonistas (mismo lenguaje visual que los iconos de la
+   grilla, a escala mucho mayor) para que no quede duda de qué codifica
+   cada color. */
+.leyenda-lateral {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(6px, 1.2vh, 10px);
+  width: clamp(150px, 18vw, 240px);
+  text-align: center;
+  border-radius: 16px;
+  padding: clamp(8px, 1.6vh, 16px);
+}
+
+.leyenda-icono-grande {
+  flex: 0 0 auto;
+  width: clamp(80px, 15vh, 160px);
+  height: clamp(80px, 15vh, 160px);
+}
+
+.leyenda-icono-grande circle,
+.leyenda-icono-grande path {
+  fill: currentColor;
+}
+
+.leyenda-tv .leyenda-icono-grande {
+  color: var(--bebe-tv);
+}
+
+.leyenda-gris .leyenda-icono-grande {
+  color: var(--bebe-gris);
+}
+
+.leyenda-texto {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.leyenda-num {
+  font-size: clamp(1.5rem, min(2.8vw, 3.4vh), 2.1rem);
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.leyenda-tv .leyenda-num {
+  color: var(--cat-teleserie);
+}
+
+.leyenda-gris .leyenda-num {
+  color: var(--text-primary);
+}
+
+/* Sin hover: el texto queda siempre en su versión destacada (azul para
+   el lado TV, negro para el otro, en seminegrita), porque el gris claro
+   anterior se leía con dificultad y nada invitaba a pasar el cursor. */
+.leyenda-desc {
+  margin: 0;
+  font-size: clamp(1rem, min(1.6vw, 2vh), 1.15rem);
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.leyenda-tv .leyenda-desc {
+  color: var(--cat-teleserie);
+}
+
+.leyenda-gris .leyenda-desc {
+  color: var(--text-primary);
+}
+
+@media (max-width: 860px) {
+  .bebes-visual {
+    flex-direction: column;
+  }
+
+  .leyenda-lateral {
+    flex-direction: row;
+    width: 100%;
+    max-width: 480px;
+    text-align: left;
+    gap: clamp(12px, 2.4vw, 20px);
+  }
+
+  .leyenda-icono-grande {
+    width: clamp(56px, 10vh, 84px);
+    height: clamp(56px, 10vh, 84px);
+  }
+
+  .leyenda-texto {
+    align-items: flex-start;
+  }
+
+  .leyenda-desc {
+    text-align: left;
+  }
+}
+
+.bebes-nota {
+  margin: clamp(6px, 1.1vh, 14px) auto 0;
+  max-width: 62ch;
+  font-size: clamp(0.85rem, min(1.4vw, 1.8vh), 1rem);
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+/* ---------- Slide del beeswarm (punto 2) ---------- */
+
+#swarm {
+  position: fixed;
+  inset: 0;
+  z-index: 800;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--page);
+  overflow: hidden;
+  will-change: transform;
+  transform: translateY(0);
+  transition: transform 0.6s ease-in-out;
+}
+
+#swarm.swarm-salida {
+  transform: translateY(-100%);
+  transition: transform 0.6s ease-in-out;
+}
+
+#swarm.zoom-activo {
+  overflow: hidden;
+}
+
+/* Capa que se escala al hacer zoom de página completa. */
+#swarm-zoom {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.swarm-contenido {
+  width: 100%;
+  max-width: min(860px, 92vw);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(16px, 4vh, 32px) 24px clamp(56px, 9vh, 96px);
+  text-align: center;
+}
+
+.swarm-titulo {
+  margin: 0 0 clamp(6px, 1.5vh, 10px);
+  font-size: clamp(1.1rem, min(3vw, 4vh), 1.9rem);
+  line-height: 1.2;
+  color: var(--text-primary);
+}
+
+.swarm-subtitulo {
+  margin: 0 auto clamp(8px, 2vh, 18px);
+  max-width: 68ch;
+  font-size: clamp(0.92rem, min(1.6vw, 2.2vh), 1.1rem);
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.swarm-leyenda-ayuda {
+  margin: 0 auto clamp(8px, 1.6vh, 14px);
+  max-width: 72ch;
+  padding: clamp(6px, 1.2vh, 10px) 14px;
+  border-radius: 10px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: clamp(0.88rem, min(1.4vw, 2vh), 1rem);
+  line-height: 1.5;
+}
+
+.swarm-leyenda-ayuda strong {
+  color: var(--text-primary);
+}
+
+.swarm-leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(6px, 1.4vh, 10px) 18px;
+  justify-content: center;
+  margin-bottom: clamp(6px, 1.5vh, 12px);
+  font-size: clamp(0.78rem, min(1.3vw, 1.9vh), 0.95rem);
+  color: var(--text-secondary);
+}
+
+.swarm-leyenda .item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: clamp(6px, 1.4vh, 9px) clamp(13px, 1.9vw, 19px);
+  border: 2px solid var(--color-grupo);
+  border-radius: 10px;
+  background: var(--color-grupo);
+  color: #fff;
+  font: inherit;
+  font-size: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(11, 11, 11, 0.18);
+  transition: filter 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.swarm-leyenda .item:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 4px 12px rgba(11, 11, 11, 0.24);
+  transform: translateY(-1px);
+}
+
+.swarm-leyenda .item:active {
+  transform: translateY(0);
+}
+
+/* Apagado: solo el contorno del color del grupo, para que se lea como un
+   botón disponible (y no como uno deshabilitado) cuando el gráfico parte
+   vacío. */
+.swarm-leyenda .item.inactivo {
+  background: var(--surface-1);
+  color: var(--text-primary);
+  box-shadow: none;
+}
+
+.swarm-leyenda .item.inactivo:hover {
+  filter: none;
+  background: var(--page);
+}
+
+#grafico-swarm {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+#grafico-swarm svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: hidden;
+}
+
+#grafico-swarm .eje text {
+  fill: var(--text-secondary);
+  font-size: 13px;
+}
+
+#grafico-swarm .eje path,
+#grafico-swarm .eje line {
+  stroke: var(--baseline);
+}
+
+#grafico-swarm .grilla line {
+  stroke: var(--gridline);
+}
+
+#grafico-swarm .mensaje-vacio {
+  fill: var(--text-muted);
+  font-size: 16px;
+}
+
+#grafico-swarm .titulo-eje {
+  fill: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+#grafico-swarm circle.punto {
+  cursor: pointer;
+  stroke: rgba(0, 0, 0, 0.25);
+  stroke-width: 1;
+  transition: r 0.15s ease, stroke 0.15s ease, stroke-width 0.15s ease, fill-opacity 0.15s ease;
+}
+
+#grafico-swarm circle.punto:hover {
+  r: 7;
+  stroke: #0b0b0b;
+  stroke-width: 2;
+  fill-opacity: 1;
+}
+
+#grafico-swarm circle.punto.punto-seleccionado {
+  stroke: #e34948;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 6px rgba(227, 73, 72, 0.9));
+  animation: pulso-punto 1.2s ease-in-out infinite;
+}
+
+@keyframes pulso-punto {
+  0%, 100% {
+    stroke-width: 3;
+    stroke-opacity: 1;
+  }
+  50% {
+    stroke-width: 7;
+    stroke-opacity: 0.25;
+  }
+}
+
+.swarm-eje-y {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.swarm-eje-y .item {
+  position: absolute;
+  left: clamp(8px, 1.5vw, 16px);
+  transform: translateY(-50%);
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-1);
+  color: var(--text-secondary);
+  font-size: clamp(0.7rem, min(1vw, 1.6vh), 0.85rem);
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(11, 11, 11, 0.12);
+  white-space: nowrap;
+}
+
+.swarm-tooltip {
+  position: absolute;
+  z-index: 6;
+  pointer-events: none;
+  max-width: 260px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-1);
+  box-shadow: 0 6px 18px rgba(11, 11, 11, 0.15);
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.swarm-tooltip strong {
+  color: var(--text-primary);
+}
+
+.swarm-tooltip .punto-color {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 6px;
+  border-radius: 50%;
+  vertical-align: middle;
+}
+
+.swarm-detalle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 4;
+  width: min(620px, 100vw);
+  height: 100%;
+  margin: 0;
+  padding: 36px 34px 48px;
+  border-left: 1px solid var(--border);
+  background: var(--surface-1);
+  box-shadow: -8px 0 30px rgba(11, 11, 11, 0.12);
+  color: var(--text-secondary);
+  line-height: 1.5;
+  overflow-y: auto;
+  pointer-events: auto;
+  transform: translateX(100%);
+  transition: transform 0.45s ease;
+}
+
+.swarm-detalle.visible {
+  transform: translateX(0);
+}
+
+.swarm-detalle[hidden] {
+  display: none;
+}
+
+.swarm-detalle-cerrar {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.swarm-detalle-cerrar:hover {
+  color: var(--text-primary);
+}
+
+.swarm-detalle .detalle-titulo {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-right: 24px;
+}
+
+.swarm-detalle .detalle-titulo h3 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: var(--text-primary);
+}
+
+.swarm-detalle #swarm-detalle-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 12px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 0.85rem;
+}
+
+.swarm-detalle #swarm-detalle-causa {
+  margin: 12px 0 4px;
+  font-size: 1.05rem;
+}
+
+.swarm-detalle #swarm-detalle-meta {
+  color: var(--text-secondary);
+  font-size: 1.05rem;
+  margin: 0 0 18px;
+}
+
+.swarm-detalle #swarm-detalle-meta a {
+  color: var(--text-secondary);
+}
+
+#swarm-grafico-detalle {
+  width: 100%;
+  height: clamp(180px, 42vh, 420px);
+}
+
+.slide-atras {
+  position: absolute;
+  top: clamp(12px, 3vh, 24px);
+  left: clamp(12px, 3vw, 24px);
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: clamp(8px, 1.8vh, 12px) clamp(16px, 2.6vw, 24px);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--cat-teleserie);
+  color: var(--page);
+  font: inherit;
+  font-size: clamp(0.85rem, min(1.2vw, 2vh), 1rem);
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(11, 11, 11, 0.1);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.slide-atras:hover {
+  background: #3634e5;
+  transform: scale(1.03);
+}
+
+.slide-atras[hidden] {
+  display: none;
+}
+
+.slide-continuar {
+  position: absolute;
+  bottom: clamp(16px, 4vh, 32px);
+  right: clamp(16px, 3vw, 28px);
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: clamp(8px, 1.8vh, 12px) clamp(16px, 2.6vw, 24px);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--cat-teleserie);
+  color: var(--page);
+  font: inherit;
+  font-size: clamp(0.85rem, min(1.2vw, 2vh), 1rem);
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(11, 11, 11, 0.1);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.slide-continuar:hover {
+  background: #3634e5;
+  transform: scale(1.03);
+}
+
+.swarm-volver {
+  position: absolute;
+  top: clamp(12px, 3vh, 24px);
+  left: clamp(12px, 3vw, 24px);
+  z-index: 5;
+  padding: clamp(9px, 2vh, 14px) clamp(18px, 3vw, 30px);
+  border: none;
+  border-radius: 999px;
+  background: var(--cat-teleserie);
+  color: #fff;
+  font: inherit;
+  font-size: clamp(0.9rem, min(1.4vw, 2.2vh), 1.15rem);
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(42, 120, 214, 0.35);
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.swarm-volver:hover {
+  filter: brightness(0.94);
+  transform: scale(1.03);
+}
+
+.swarm-volver[hidden] {
+  display: none;
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 720px) {
+  /* El panel de detalle pasa a bottom sheet. */
+  .swarm-detalle {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: min(72vh, 520px);
+    border-left: none;
+    border-top: 1px solid var(--border);
+    border-radius: 12px 12px 0 0;
+    transform: translateY(100%);
+  }
+
+  .swarm-detalle.visible {
+    transform: translateY(0);
+  }
+}

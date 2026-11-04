@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>NFC · Protobject</title>
+  <script src="https://app.protobject.com/framework/p.js"></script>
+  <script src="config.js"></script>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 16px; padding: 24px;
+      background: #f9f9f7; color: #0b0b0b;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif; text-align: center;
+    }
+    h1 { margin: 0; font-size: 1.5rem; }
+    .hint { margin: 0; max-width: 36ch; color: #52514e; line-height: 1.45; font-size: .95rem; }
+    .acciones { display: flex; flex-direction: column; gap: 10px; width: min(320px, 90vw); }
+    button {
+      border: 0; border-radius: 12px; padding: 14px 18px; font: inherit;
+      font-size: 1rem; font-weight: 700; cursor: pointer; color: #fff;
+      background: #2a78d6;
+    }
+    button.secundario { background: #52514e; }
+    button.peligro { background: #e34948; }
+    .lista { width: min(320px, 90vw); display: flex; flex-direction: column; gap: 6px; }
+    .item {
+      display: flex; justify-content: space-between; gap: 12px;
+      padding: 8px 12px; border-radius: 10px; background: #fcfcfb;
+      border: 1px solid rgba(11,11,11,.1); font-size: .9rem;
+    }
+    .ok { color: #1baf7a; font-weight: 700; }
+    .pend { color: #898781; }
+    .estado { margin: 0; min-height: 2.6em; color: #52514e; font-size: .95rem; max-width: 36ch; }
+  </style>
+</head>
+<body>
+  <h1>Tarjetas NFC</h1>
+  <p class="hint">
+    Acerca una tarjeta a la parte trasera del Android para activar o desactivar
+    su categoría en el beeswarm. Requiere Android + Chrome.
+  </p>
+
+  <div class="acciones">
+    <button id="iniciar">INICIAR LECTOR NFC</button>
+    <button id="aprender" class="secundario">APRENDER 5 TARJETAS</button>
+    <button id="borrar" class="peligro">BORRAR TARJETAS APRENDIDAS</button>
+  </div>
+
+  <div class="lista" id="lista"></div>
+  <p class="estado" id="estado">Sin iniciar.</p>
+
+  <script>
+    (function () {
+      var CATEGORIAS = [
+        "Teleseries",
+        "Música / Viña",
+        "Otras causas televisivas",
+        "No televisivas",
+        "Sin identificar",
+      ];
+      var CLAVE = "e2NfcTarjetas";
+      var tarjetas = {};
+      try {
+        tarjetas = JSON.parse(localStorage.getItem(CLAVE) || "{}") || {};
+      } catch (e) {
+        tarjetas = {};
+      }
+
+      var aprendiendo = null; // índice de la categoría que toca aprender
+      var ultimoId = null;
+      var ultimoTiempo = 0;
+      var leyendo = false;
+
+      var estadoEl = document.getElementById("estado");
+      var listaEl = document.getElementById("lista");
+
+      function guardar() {
+        localStorage.setItem(CLAVE, JSON.stringify(tarjetas));
+      }
+
+      function renderLista() {
+        listaEl.innerHTML = "";
+        CATEGORIAS.forEach(function (cat) {
+          var div = document.createElement("div");
+          div.className = "item";
+          var nombre = document.createElement("span");
+          nombre.textContent = cat;
+          var marca = document.createElement("span");
+          if (tarjetas[cat]) {
+            marca.className = "ok";
+            marca.textContent = "✓ aprendida";
+          } else {
+            marca.className = "pend";
+            marca.textContent = "sin aprender";
+          }
+          div.appendChild(nombre);
+          div.appendChild(marca);
+          listaEl.appendChild(div);
+        });
+      }
+
+      function enviarCategoria(cat) {
+        if (typeof Protobject === "undefined" || !Protobject.Core) return;
+        Protobject.Core.send({ tipo: "nfc", categoria: cat }).to("index.html");
+      }
+
+      function iniciarAprendizaje() {
+        if (!leyendo) {
+          estadoEl.textContent = "Primero toca INICIAR LECTOR NFC.";
+          return;
+        }
+        aprendiendo = 0;
+        estadoEl.textContent = "Acerca la tarjeta de: " + CATEGORIAS[0];
+      }
+
+      document.getElementById("iniciar").addEventListener("click", function () {
+        if (typeof Protobject === "undefined" || !Protobject.NFC) {
+          estadoEl.textContent = "Web NFC no está disponible en este dispositivo.";
+          return;
+        }
+        Protobject.NFC.start();
+        leyendo = true;
+        estadoEl.textContent = "Lector iniciado. Acerca una tarjeta.";
+      });
+
+      document.getElementById("aprender").addEventListener("click", iniciarAprendizaje);
+
+      document.getElementById("borrar").addEventListener("click", function () {
+        tarjetas = {};
+        guardar();
+        renderLista();
+        aprendiendo = null;
+        estadoEl.textContent = "Tarjetas borradas. Vuelve a aprenderlas.";
+      });
+
+      if (typeof Protobject !== "undefined" && Protobject.NFC) {
+        Protobject.NFC.onData(function (id) {
+          if (id === "err: no compatible") {
+            estadoEl.textContent = "Tarjeta no compatible.";
+            return;
+          }
+
+          if (aprendiendo !== null) {
+            var cat = CATEGORIAS[aprendiendo];
+            tarjetas[cat] = id;
+            guardar();
+            renderLista();
+            estadoEl.textContent = "✓ " + cat + " aprendida.";
+            setTimeout(function () {
+              aprendiendo += 1;
+              if (aprendiendo < CATEGORIAS.length) {
+                estadoEl.textContent = "Acerca la tarjeta de: " + CATEGORIAS[aprendiendo];
+              } else {
+                aprendiendo = null;
+                estadoEl.textContent = "Listo. Todas las tarjetas aprendidas.";
+              }
+            }, 800);
+            return;
+          }
+
+          var categoria = null;
+          Object.keys(tarjetas).forEach(function (k) {
+            if (tarjetas[k] === id) categoria = k;
+          });
+
+          if (!categoria) {
+            estadoEl.textContent = "Tarjeta desconocida. Apréndela primero.";
+            return;
+          }
+
+          var ahora = Date.now();
+          if (id === ultimoId && ahora - ultimoTiempo < 2000) return;
+          ultimoId = id;
+          ultimoTiempo = ahora;
+
+          enviarCategoria(categoria);
+          estadoEl.textContent = "Leída: " + categoria;
+        });
+      }
+
+      renderLista();
+    })();
+  </script>
+</body>
+</html>

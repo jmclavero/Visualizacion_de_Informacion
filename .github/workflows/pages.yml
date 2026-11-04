@@ -1,10 +1,12 @@
-name: Deploy E1 a GitHub Pages
+name: Deploy E1 y E2 a GitHub Pages
 
 on:
   push:
     branches: ["main"]
     paths:
       - "E1/**"
+      - "E2/**"
+      - "index.html"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -28,10 +30,16 @@ jobs:
         uses: actions/checkout@v4
       - name: Configurar Pages
         uses: actions/configure-pages@v5
-      - name: Subir E1/ como artefacto de Pages
+      - name: Preparar sitio (raíz + E1 + E2)
+        run: |
+          mkdir -p site
+          cp -r E1 site/E1
+          cp -r E2 site/E2
+          cp index.html site/index.html
+      - name: Subir sitio como artefacto de Pages
         uses: actions/upload-pages-artifact@v3
         with:
-          path: "E1"
+          path: "site"
       - name: Deploy a GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

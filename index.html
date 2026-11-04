@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nombres en boom — Entregas (IIC2026)</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 24px;
+      background: #f9f9f7;
+      color: #0b0b0b;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    header {
+      max-width: 760px;
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(1.6rem, 4vw, 2.4rem);
+      line-height: 1.15;
+    }
+    header p {
+      margin: 0;
+      color: #52514e;
+      font-size: clamp(0.95rem, 1.8vw, 1.1rem);
+      line-height: 1.55;
+    }
+    .entregas {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 20px;
+      width: 100%;
+      max-width: 900px;
+    }
+    .entrega {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 28px;
+      border: 1px solid rgba(11, 11, 11, 0.1);
+      border-radius: 16px;
+      background: #fcfcfb;
+      color: inherit;
+      text-decoration: none;
+      box-shadow: 0 4px 16px rgba(11, 11, 11, 0.06);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+    .entrega:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 28px rgba(11, 11, 11, 0.12);
+      border-color: rgba(42, 120, 214, 0.45);
+    }
+    .etiqueta {
+      align-self: flex-start;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: #2a78d6;
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .entrega h2 {
+      margin: 0;
+      font-size: 1.35rem;
+      line-height: 1.2;
+    }
+    .entrega p {
+      margin: 0;
+      color: #52514e;
+      line-height: 1.55;
+      font-size: 0.95rem;
+      flex: 1;
+    }
+    .abrir {
+      margin-top: 4px;
+      color: #2a78d6;
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+    footer {
+      margin-top: 36px;
+      color: #898781;
+      font-size: 0.8rem;
+      text-align: center;
+    }
+    @media (max-width: 700px) {
+      .entregas { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Nombres en boom — Entregas</h1>
+    <p>
+      Visualización de Información (IIC2026, PUC). Elige la entrega que quieres
+      abrir.
+    </p>
+  </header>
+
+  <div class="entregas">
+    <a class="entrega" href="E1/">
+      <span class="etiqueta">Entrega 1</span>
+      <h2>Visualización</h2>
+      <p>
+        Explora cómo la televisión influyó en los nombres de las guaguas
+        chilenas: la proporción de nombres impulsados por la TV, las alzas
+        categorizadas y el detalle de cada caso.
+      </p>
+      <span class="abrir">Abrir E1 →</span>
+    </a>
+
+    <a class="entrega" href="E2/v1/">
+      <span class="etiqueta">Entrega 2</span>
+      <h2>Interacción física</h2>
+      <p>
+        La misma visualización con controles físicos: perilla para recorrer el
+        detalle, botones para navegar los puntos, tarjetas NFC para filtrar
+        categorías y un servo que indica la magnitud del alza.
+      </p>
+      <span class="abrir">Abrir E2 →</span>
+    </a>
+  </div>
+
+  <footer>Protobject · Arduino · D3 · Plotly · Tone.js</footer>
+</body>
+</html>

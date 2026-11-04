@@ -8,3 +8,8 @@ E1/datos/
 .DS_Store
 __pycache__/
 *.pyc
+
+# Artefactos de descarga de Windows
+*:Zone.Identifier
+*.Zone.Identifier
+:Zone.Identifier

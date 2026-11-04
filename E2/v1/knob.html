@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Perilla · Protobject</title>
+  <script src="https://app.protobject.com/framework/p.js"></script>
+  <script src="config.js"></script>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 18px; padding: 24px;
+      background: #f9f9f7; color: #0b0b0b;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif; text-align: center;
+    }
+    h1 { margin: 0; font-size: 1.6rem; }
+    .hint { margin: 0; max-width: 34ch; color: #52514e; line-height: 1.45; }
+    .lectura { font-size: 4rem; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+    .fila { display: flex; gap: 18px; font-size: 1.1rem; color: #52514e; }
+    button {
+      border: 0; border-radius: 999px; padding: 14px 24px; font: inherit;
+      font-size: 1rem; font-weight: 700; cursor: pointer; color: #fff;
+      background: #2a78d6; box-shadow: 0 6px 18px rgba(42,120,214,.3);
+    }
+    button.secundario { background: #52514e; box-shadow: none; }
+    button:disabled { opacity: .5; cursor: default; }
+    .oculto { display: none; }
+    .estado { margin: 0; color: #898781; font-size: .9rem; max-width: 34ch; }
+  </style>
+</head>
+<body>
+  <h1>Perilla</h1>
+  <p class="hint">
+    Gira el teléfono sobre la mesa como una perilla. Una vuelta completa
+    recorre 1920 → 2021 en el detalle del punto.
+  </p>
+
+  <div class="lectura" id="valor">—</div>
+  <div class="fila">
+    <span id="sentido">—</span>
+    <span id="vueltas">0 vueltas</span>
+  </div>
+
+  <button id="permiso" class="oculto">PEDIR PERMISO DE ORIENTACIÓN</button>
+  <button id="calibrar" class="secundario">CALIBRAR COMO POSICIÓN 0</button>
+
+  <p class="estado" id="estado">Esperando lectura del sensor…</p>
+
+  <script>
+    (function () {
+      var SENTIDO = -1;        // cambia a 1 si el giro queda invertido
+      var UMBRAL_GRADOS = 1;   // cambio mínimo para enviar al PC
+
+      var valorEl = document.getElementById("valor");
+      var sentidoEl = document.getElementById("sentido");
+      var vueltasEl = document.getElementById("vueltas");
+      var estadoEl = document.getElementById("estado");
+      var permisoBtn = document.getElementById("permiso");
+      var calibrarBtn = document.getElementById("calibrar");
+
+      var alphaAnterior = null;
+      var acumulado = 0;
+      var origen = null;
+      var anguloPrevio = null;
+
+      function enviar(mensaje) {
+        if (typeof Protobject !== "undefined" && Protobject.Core) {
+          Protobject.Core.send(mensaje).to("index.html");
+        }
+      }
+
+      function handler(event) {
+        var alpha = event.alpha;
+        if (alpha === null || alpha === undefined) return;
+
+        if (alphaAnterior !== null) {
+          var delta = alpha - alphaAnterior;
+          if (delta > 180) delta -= 360;
+          if (delta < -180) delta += 360;
+          acumulado += delta * SENTIDO;
+        }
+        alphaAnterior = alpha;
+
+        if (origen === null) {
+          valorEl.textContent = "—";
+          estadoEl.textContent = "Toca CALIBRAR para fijar la posición 0.";
+          return;
+        }
+
+        var angulo = acumulado - origen;
+        var vueltas = Math.trunc(angulo / 360);
+
+        valorEl.textContent = Math.round(angulo) + "°";
+        sentidoEl.textContent = angulo >= 0 ? "↻ Horario" : "↺ Antihorario";
+        vueltasEl.textContent = vueltas + (Math.abs(vueltas) === 1 ? " vuelta" : " vueltas");
+        estadoEl.textContent = "Enviando al computador…";
+
+        if (anguloPrevio !== null && Math.abs(angulo - anguloPrevio) < UMBRAL_GRADOS) {
+          return;
+        }
+        anguloPrevio = angulo;
+        enviar({ tipo: "perilla", angulo: angulo });
+      }
+
+      calibrarBtn.addEventListener("click", function () {
+        origen = acumulado;
+        anguloPrevio = null;
+        estadoEl.textContent = "Calibrado. Gira el teléfono.";
+      });
+
+      // Reset que envía el PC al abrir un nuevo detalle.
+      if (typeof Protobject !== "undefined" && Protobject.Core) {
+        Protobject.Core.onReceived(function (mensaje) {
+          if (mensaje && mensaje.tipo === "reset") {
+            origen = acumulado;
+            anguloPrevio = null;
+            estadoEl.textContent = "Reiniciado por el computador. Gira desde aquí.";
+          }
+        });
+      }
+
+      // iOS exige permiso desde un toque del usuario.
+      if (
+        typeof DeviceOrientationEvent !== "undefined" &&
+        typeof DeviceOrientationEvent.requestPermission === "function"
+      ) {
+        permisoBtn.classList.remove("oculto");
+        permisoBtn.addEventListener("click", function () {
+          DeviceOrientationEvent.requestPermission()
+            .then(function (respuesta) {
+              if (respuesta === "granted") {
+                window.addEventListener("deviceorientation", handler, true);
+                permisoBtn.classList.add("oculto");
+                estadoEl.textContent = "Sensor activo. Toca CALIBRAR.";
+              } else {
+                estadoEl.textContent = "Permiso de orientación denegado.";
+              }
+            })
+            .catch(function (error) {
+              estadoEl.textContent = "Error: " + error.message;
+            });
+        });
+      } else {
+        window.addEventListener("deviceorientation", handler, true);
+      }
+    })();
+  </script>
+</body>
+</html>
