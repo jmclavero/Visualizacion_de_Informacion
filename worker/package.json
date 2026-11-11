@@ -1,0 +1,5 @@
+{
+  "name": "nombres-boom-worker",
+  "private": true,
+  "type": "module"
+}

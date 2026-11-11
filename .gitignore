@@ -4,6 +4,16 @@ E1/**/*.md
 # Entrega 1: datos crudos y derivados (pesados; la web usa un JSON procesado)
 E1/datos/
 
+# Secretos y dependencias del Worker / servidor
+.env
+.env.*
+worker/.dev.vars
+worker/.env
+node_modules/
+
+# Artefactos locales de test
+test-output/
+
 # Sistema
 .DS_Store
 __pycache__/

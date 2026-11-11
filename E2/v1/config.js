@@ -1,11 +1,9 @@
-// config.js — compartido por todas las páginas del prototipo.
-// Declara los dispositivos que se pueden emparejar desde el QR de Protobject.
+// config.js — dispositivos del prototipo.
+// Solo Visualización (PC), Botón y Micrófono (un celular cada uno).
 if (typeof Protobject !== "undefined") {
   Protobject.initialize([
-    { name: "Visualización", page: "index.html" },
-    { name: "Perilla", page: "knob.html" },
-    { name: "Botones", page: "buttons.html" },
-    { name: "NFC", page: "nfc.html" },
-    { name: "Arduino", page: "arduino.html" },
+    { name: "Visualización", page: "index.html", main: true },
+    { name: "Botón", page: "button.html" },
+    { name: "Micrófono", page: "microphone.html" },
   ]);
 }

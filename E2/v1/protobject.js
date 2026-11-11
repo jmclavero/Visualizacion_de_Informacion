@@ -1,6 +1,5 @@
 // Puente entre Protobject y la visualización.
-// Recibe los mensajes de las páginas de sensores y llama a las funciones de
-// main.js. Si Protobject no está disponible (sin conexión), no hace nada.
+// Recibe los mensajes de Botón y Micrófono y llama a las funciones de main.js.
 (function () {
   if (typeof Protobject === "undefined" || !Protobject.Core) {
     console.warn("Protobject no está disponible; la viz funciona sin sensores.");
@@ -8,28 +7,21 @@
   }
 
   Protobject.Core.onReceived(function (mensaje) {
-    // El NFC podría enviar un string; el resto, objetos con "tipo".
-    if (typeof mensaje === "string") {
-      alternarCategoriaProtobject(mensaje);
-      return;
-    }
     if (!mensaje || typeof mensaje !== "object") return;
 
-    // La perilla del proyectoenvía { angulo, vueltas } sin "tipo".
-    if (!mensaje.tipo && typeof mensaje.angulo === "number") {
-      manejarPerilla(mensaje.angulo);
-      return;
-    }
-
     switch (mensaje.tipo) {
-      case "perilla":
-        manejarPerilla(mensaje.angulo);
+      case "boton":
+        if (typeof iniciarEscuchaVoz === "function") iniciarEscuchaVoz();
         break;
-      case "nav":
-        navegarPuntosSwarm(mensaje.dir);
+      case "voz":
+        if (typeof actualizarEstadoVoz === "function") {
+          actualizarEstadoVoz(mensaje.estado, mensaje.texto);
+        }
         break;
-      case "nfc":
-        alternarCategoriaProtobject(mensaje.categoria);
+      case "nombre":
+        if (typeof manejarNombreVoz === "function") {
+          manejarNombreVoz(mensaje.nombre);
+        }
         break;
       default:
         break;

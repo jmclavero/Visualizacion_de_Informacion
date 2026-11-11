@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Micrófono · Protobject</title>
+  <script src="https://app.protobject.com/framework/p.js"></script>
+  <script src="config.js"></script>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      padding: 24px;
+      background: #f9f9f7;
+      color: #0b0b0b;
+      text-align: center;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    h1 { margin: 0; font-size: 1.6rem; }
+    .hint { margin: 0; max-width: 42ch; color: #52514e; line-height: 1.45; }
+    #activar {
+      border: 0;
+      border-radius: 999px;
+      padding: 16px 28px;
+      background: #2a78d6;
+      color: #fff;
+      font: inherit;
+      font-size: 1.05rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    #activar:disabled { opacity: 0.5; cursor: default; }
+    #transcripcion {
+      margin: 0;
+      min-height: 3em;
+      max-width: 40ch;
+      font-size: 1.2rem;
+      color: #0b0b0b;
+    }
+    #estado {
+      margin: 0;
+      color: #898781;
+      font-size: 0.95rem;
+      min-height: 1.5em;
+    }
+  </style>
+</head>
+<body>
+  <h1>Micrófono</h1>
+  <p class="hint">
+    Activa el micrófono una vez en este celular. Después, el botón del otro
+    celular hará que empiece a escuchar el nombre.
+  </p>
+
+  <button id="activar" type="button">ACTIVAR MICRÓFONO</button>
+  <p id="transcripcion"></p>
+  <p id="estado">Esperando el botón…</p>
+
+  <script>
+    (function () {
+      var estadoEl = document.getElementById("estado");
+      var transcripcionEl = document.getElementById("transcripcion");
+      var activarBtn = document.getElementById("activar");
+
+      var reconociendo = false;
+      var ultimoTexto = "";
+      var activado = false;
+      var timerEscucha = null;
+
+      function enviar(mensaje) {
+        if (typeof Protobject === "undefined" || !Protobject.Core) return;
+        Protobject.Core.send(mensaje).to("index.html");
+      }
+
+      function limpiarNombre(texto) {
+        return String(texto || "")
+          .replace(/^(me llamo|mi nombre es|soy|el nombre es)\s+/i, "")
+          .replace(/[.,!?¿¡]/g, "")
+          .trim();
+      }
+
+      function iniciar() {
+        if (reconociendo) return;
+        if (typeof Protobject === "undefined" || !Protobject.VoiceRecognition) {
+          estadoEl.textContent = "Reconocimiento de voz no disponible en este navegador.";
+          return;
+        }
+
+        reconociendo = true;
+        ultimoTexto = "";
+        transcripcionEl.textContent = "";
+        estadoEl.textContent = "Escuchando… di tu nombre.";
+        enviar({ tipo: "voz", estado: "escuchando" });
+
+        try {
+          Protobject.VoiceRecognition.start("es-CL");
+          clearTimeout(timerEscucha);
+          timerEscucha = setTimeout(function () {
+            if (reconociendo) {
+              try { Protobject.VoiceRecognition.stop(); } catch (error) {}
+            }
+          }, 8000);
+        } catch (error) {
+          reconociendo = false;
+          estadoEl.textContent = "No se pudo iniciar el micrófono: " + error.message;
+          enviar({ tipo: "voz", estado: "error", texto: "No se pudo iniciar el micrófono." });
+        }
+      }
+
+      if (typeof Protobject !== "undefined" && Protobject.VoiceRecognition) {
+        Protobject.VoiceRecognition.onData(function (transcript) {
+          ultimoTexto = transcript || "";
+          transcripcionEl.textContent = ultimoTexto;
+          // El componente usa reconocimiento continuo: al recibir el nombre
+          // lo detenemos para que onFinish envíe el resultado.
+          try { Protobject.VoiceRecognition.stop(); } catch (error) {}
+        });
+
+        Protobject.VoiceRecognition.onFinish(function () {
+          clearTimeout(timerEscucha);
+          reconociendo = false;
+          var nombre = limpiarNombre(ultimoTexto);
+          transcripcionEl.textContent = nombre ? "“" + nombre + "”" : "No se entendió.";
+          estadoEl.textContent = nombre ? "Nombre enviado. Esperando el botón…" : "No se entendió. Intenta de nuevo.";
+          enviar({ tipo: "voz", estado: "listo" });
+          if (nombre) {
+            enviar({ tipo: "nombre", nombre: nombre });
+            activado = true;
+            activarBtn.textContent = "VOLVER A ACTIVAR MICRÓFONO";
+          } else {
+            enviar({ tipo: "voz", estado: "error", texto: "No se entendió el nombre." });
+          }
+        });
+
+        if (typeof Protobject !== "undefined" && Protobject.Core) {
+          Protobject.Core.onReceived(function (mensaje) {
+            if (mensaje && mensaje.tipo === "hablar") {
+              iniciar();
+            }
+          });
+        }
+
+        activarBtn.addEventListener("click", function () {
+          iniciar();
+        });
+      } else {
+        activarBtn.disabled = true;
+        estadoEl.textContent = "Este navegador no soporta reconocimiento de voz.";
+      }
+    })();
+  </script>
+</body>
+</html>
