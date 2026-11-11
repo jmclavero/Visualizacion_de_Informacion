@@ -915,7 +915,11 @@ async function manejarNombreVoz(nombreCrudo) {
     // real. Esto también protege si el Worker desplegado aún es el antiguo.
     const fuenteIa =
       typeof data.fuente === "string" && /^https?:\/\//i.test(data.fuente);
-    if (!fuenteIa) {
+    const causaValidaIa =
+      fuenteIa &&
+      data.causa &&
+      data.causa !== "Sin causa verificada";
+    if (!causaValidaIa) {
       data.categoria = "Sin identificar";
       data.categoria_viz = "Sin identificar";
       data.causa = "Sin causa verificada";
