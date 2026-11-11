@@ -16,16 +16,6 @@ fetch("data/nombres.json")
   .then((r) => r.json())
   .then((datos) => {
     DATOS = datos;
-
-    // La visualización llega hasta 2025. Los booms históricos terminan en
-    // 2021, así que completamos con ceros los años que faltan.
-    const largo = 2025 - DATOS.anio_min + 1;
-    DATOS.booms.forEach((b) => {
-      if (b.serie.length > largo) b.serie = b.serie.slice(0, largo);
-      while (b.serie.length < largo) b.serie.push(0);
-    });
-    DATOS.anio_max = 2025;
-
     IDENTIFICADOS = DATOS.booms.filter((b) => b.categoria_viz !== "Sin identificar");
     rellenarBebes();
     animarBebes(); // la slide de bebés es la primera: se colorean al cargar
@@ -396,12 +386,9 @@ let gruposActivos = new Set();
 let nodosSwarm = null; // layout fijo de los 203 puntos (se calcula una vez)
 let capaPuntosSwarm = null; // <g> donde viven los círculos
 let mensajeVacioSwarm = null; // texto que se muestra con el gráfico vacío
-let ultimaCategoriaActivada = null; // última categoría activada
-let detalleActual = null; // alza cuyo detalle está abierto
+let ultimaCategoriaActivada = null; // para la navegación con los dos botones
+let detalleActual = null; // alza cuyo detalle está abierto (para la perilla)
 let indiceCursorDetalle = 0; // año actual del cursor del detalle (0 = 1920)
-let centroXSwarm = null; // escala X de categorías (para agregar puntos IA)
-let escalaYSwarm = null; // escala Y logarítmica de veces (para puntos IA)
-let vozOcupada = false; // evita consultas simultáneas a DeepSeek
 
 function actualizarLeyendaSwarm() {
   document.querySelectorAll("#swarm-leyenda .item").forEach((item) => {
@@ -437,7 +424,20 @@ function enviarProtobject(mensaje, pagina) {
   else Protobject.Core.send(mensaje);
 }
 
-// Actualiza el cursor vertical y el punto rojo del detalle.
+// Magnitud del alza -> ángulo del servo (escala log, 4x..300x -> 0..180°).
+function anguloDesdeVeces(veces) {
+  const t = Math.log(veces / 4) / Math.log(300 / 4);
+  return Math.max(0, Math.min(180, 180 * t));
+}
+
+function enviarAnguloServo(veces) {
+  enviarProtobject(
+    { tipo: "servo", angulo: Math.round(anguloDesdeVeces(veces)) },
+    "arduino.html"
+  );
+}
+
+// Actualiza el cursor vertical y el punto rojo del detalle (perilla).
 function actualizarCursorDetalle(indice) {
   if (!detalleActual || typeof Plotly === "undefined") return;
   const b = detalleActual;
@@ -506,208 +506,48 @@ function actualizarCursorDetalle(indice) {
   Plotly.relayout("swarm-grafico-detalle", { shapes, annotations });
 }
 
-// ---------- Voz, DeepSeek y nombres nuevos ----------
+// La perilla envía un ángulo continuo: 2 vueltas (720°) recorren 1920..2021.
+const VUELTAS_GRAFICO = 2;
 
-let timerVoz = null;
-
-function estadoVoz(texto, visible = true) {
-  const el = document.getElementById("voz-estado");
-  if (!el) return;
-  el.textContent = texto || "";
-  el.hidden = !visible || !texto;
+function manejarPerilla(angulo) {
+  if (!detalleActual) return;
+  const totalAnios = DATOS.anio_max - DATOS.anio_min;
+  let indice = Math.round((angulo / (360 * VUELTAS_GRAFICO)) * totalAnios);
+  indice = Math.max(0, Math.min(totalAnios, indice));
+  if (indice === indiceCursorDetalle) return;
+  indiceCursorDetalle = indice;
+  actualizarCursorDetalle(indice);
 }
 
-function normalizarNombre(value) {
-  return String(value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, " ");
-}
+// Los dos botones navegan solo dentro de la última categoría activada,
+// empezando por su punto más bajo y ordenando por magnitud (veces).
+function navegarPuntosSwarm(dir) {
+  if (!ultimaCategoriaActivada || !nodosSwarm) return;
+  const lista = nodosSwarm
+    .filter(
+      (n) => n.grupo === ultimaCategoriaActivada && gruposActivos.has(n.grupo)
+    )
+    .sort((a, b) => a.veces - b.veces);
+  if (lista.length === 0) return;
 
-function limpiarNombreVoz(value) {
-  return String(value || "")
-    .replace(/^(me llamo|mi nombre es|soy|el nombre es)\s+/i, "")
-    .replace(/[.,!?¿¡]/g, "")
-    .trim()
-    .replace(/\s+/g, " ");
-}
+  let idx = lista.indexOf(nodoActivo);
+  if (idx === -1) {
+    idx = 0; // primer toque: el punto más bajo de la categoría
+  } else {
+    idx += dir === "up" ? 1 : -1;
+  }
+  idx = Math.max(0, Math.min(lista.length - 1, idx));
 
-function buscarBoomReal(nombre) {
-  const buscado = normalizarNombre(nombre);
-  if (!buscado) return null;
-  return (
-    DATOS.booms.find(
-      (b) => !b.ia && normalizarNombre(b.nombre) === buscado
-    ) || null
+  const nodo = lista[idx];
+  const circle = document.querySelector(
+    `#grafico-swarm circle[data-id="${nodo.id}"]`
   );
+  if (circle) seleccionarNodoSwarm(nodo, circle);
 }
 
-function iniciarEscuchaVoz() {
-  if (vozOcupada) return;
-  estadoVoz("Botón presionado. Pidiendo el nombre al micrófono…");
-  enviarProtobject({ tipo: "hablar" }, "microphone.html");
-  clearTimeout(timerVoz);
-  timerVoz = setTimeout(() => {
-    if (!vozOcupada) {
-      estadoVoz("No llegó el nombre. Revisa que el micrófono esté conectado.");
-    }
-  }, 9000);
-}
-
-function actualizarEstadoVoz(estado, texto) {
-  if (estado === "escuchando" || estado === "listo" || estado === "error") {
-    clearTimeout(timerVoz);
-  }
-  if (estado === "escuchando") {
-    estadoVoz("Escuchando… di tu nombre.");
-  } else if (estado === "listo") {
-    estadoVoz("Procesando el nombre…");
-  } else if (estado === "error") {
-    estadoVoz(texto || "No se entendió el nombre. Intenta de nuevo.");
-  }
-}
-
-function seleccionarBoomReal(boom) {
-  if (!nodosSwarm) {
-    estadoVoz("El beeswarm todavía no está listo.");
-    return;
-  }
-
-  const nodo = nodosSwarm.find(
-    (n) => n.boom === boom || (n.boom.nombre === boom.nombre && n.boom.anio === boom.anio)
-  );
-  if (!nodo) {
-    estadoVoz("El nombre existe, pero no se encontró su punto.");
-    return;
-  }
-
-  gruposActivos.add(nodo.grupo);
-  ultimaCategoriaActivada = nodo.grupo;
-  actualizarLeyendaSwarm();
-  actualizarPuntosSwarm();
-
-  setTimeout(() => {
-    const circle = document.querySelector(
-      `#grafico-swarm circle[data-id="${nodo.id}"]`
-    );
-    if (circle) {
-      seleccionarNodoSwarm(nodo, circle);
-      estadoVoz(`Dato real: ${boom.nombre} (${boom.anio}).`);
-    } else {
-      estadoVoz("No se pudo ubicar el punto del nombre.");
-    }
-  }, 80);
-}
-
-function agregarBoomIA(boom) {
-  if (!boom || !Array.isArray(boom.serie)) {
-    estadoVoz("La respuesta de la IA no tiene el formato esperado.");
-    return;
-  }
-  if (!nodosSwarm || !centroXSwarm || !escalaYSwarm) {
-    estadoVoz("El beeswarm todavía no está listo.");
-    return;
-  }
-
-  const largo = DATOS.anio_max - DATOS.anio_min + 1;
-  if (boom.serie.length > largo) boom.serie = boom.serie.slice(0, largo);
-  while (boom.serie.length < largo) boom.serie.push(0);
-
-  let grupo =
-    boom.categoria_viz && ORDEN_SWARM.includes(boom.categoria_viz)
-      ? boom.categoria_viz
-      : GRUPO_SWARM[boom.categoria] || "Sin identificar";
-  if (!ORDEN_SWARM.includes(grupo)) grupo = "Sin identificar";
-
-  boom.ia = true;
-  boom.categoria_viz = grupo;
-  boom.veces = Number(boom.veces) || 1;
-  boom.anio = Number(boom.anio) || DATOS.anio_min;
-  DATOS.booms.push(boom);
-
-  const id = "ia-" + Date.now();
-  const total = nodosSwarm.filter((n) => n.grupo === grupo).length;
-  const offset = (total % 2 ? 1 : -1) * (7 + (total % 5) * 3);
-  const x = Math.max(
-    60,
-    Math.min(ANCHO_SWARM - 30, centroXSwarm(grupo) + offset)
-  );
-  const vecesY = Math.max(3, Math.min(300, boom.veces));
-  const y = escalaYSwarm(vecesY);
-
-  const nodo = { id, boom, grupo, veces: boom.veces, x, y, ia: true };
-  nodosSwarm.push(nodo);
-
-  gruposActivos.add(grupo);
-  ultimaCategoriaActivada = grupo;
-  actualizarLeyendaSwarm();
-  actualizarPuntosSwarm();
-
-  setTimeout(() => {
-    const circle = document.querySelector(
-      `#grafico-swarm circle[data-id="${id}"]`
-    );
-    if (circle) {
-      seleccionarNodoSwarm(nodo, circle);
-    } else {
-      estadoVoz("El nombre se agregó, pero no se pudo abrir su detalle.");
-    }
-  }, 80);
-}
-
-async function manejarNombreVoz(nombreCrudo) {
-  if (vozOcupada) return;
-  clearTimeout(timerVoz);
-
-  const nombre = limpiarNombreVoz(nombreCrudo);
-  if (!nombre) {
-    estadoVoz("No se entendió el nombre. Intenta de nuevo.");
-    return;
-  }
-
-  const real = buscarBoomReal(nombre);
-  if (real) {
-    estadoVoz(`Nombre real encontrado: ${real.nombre} (${real.anio}).`);
-    seleccionarBoomReal(real);
-    return;
-  }
-
-  const api = window.API_BOOM_URL;
-  if (!api || api.includes("TU-WORKER")) {
-    estadoVoz("Falta configurar la URL del Worker en api-config.js.");
-    return;
-  }
-
-  vozOcupada = true;
-  estadoVoz(`Consultando DeepSeek para “${nombre}”…`);
-
-  try {
-    const respuesta = await fetch(api, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nombre }),
-      signal:
-        typeof AbortSignal !== "undefined" && AbortSignal.timeout
-          ? AbortSignal.timeout(45000)
-          : undefined,
-    });
-
-    const data = await respuesta.json();
-    if (!respuesta.ok || data.error) {
-      throw new Error(data.error || "Error al consultar DeepSeek.");
-    }
-
-    agregarBoomIA(data);
-    estadoVoz(
-      `Nombre agregado: ${data.nombre} · ${data.categoria} · estimado con IA.`
-    );
-  } catch (error) {
-    estadoVoz("No se pudo generar el nombre: " + error.message);
-  } finally {
-    vozOcupada = false;
-  }
+// NFC: una tarjeta equivale a activar/desactivar su categoría.
+function alternarCategoriaProtobject(categoria) {
+  if (ORDEN_SWARM.includes(categoria)) alternarGrupoSwarm(categoria);
 }
 
 function construirLeyendaSwarm() {
@@ -748,10 +588,7 @@ function posicionarTooltipSwarm(ev) {
 function mostrarTooltipSwarm(ev, d) {
   const tip = document.getElementById("swarm-tooltip");
   if (!tip) return;
-  const grupo =
-    d.boom.categoria_viz && ORDEN_SWARM.includes(d.boom.categoria_viz)
-      ? d.boom.categoria_viz
-      : GRUPO_SWARM[d.boom.categoria] || "Sin identificar";
+  const grupo = GRUPO_SWARM[d.boom.categoria] || "Sin identificar";
   tip.innerHTML =
     `<strong>${d.boom.nombre} (${d.boom.anio})</strong><br>` +
     `<span class="punto-color" style="background:${COLOR_SWARM[grupo]}"></span>` +
@@ -766,10 +603,7 @@ function ocultarTooltipSwarm() {
 }
 
 function llenarDetalleSwarm(b) {
-  const grupo =
-    b.categoria_viz && ORDEN_SWARM.includes(b.categoria_viz)
-      ? b.categoria_viz
-      : GRUPO_SWARM[b.categoria] || "Sin identificar";
+  const grupo = GRUPO_SWARM[b.categoria] || "Sin identificar";
   const color = COLOR_SWARM[grupo];
 
   document.getElementById("swarm-detalle-nombre").textContent = `${b.nombre} (${b.anio})`;
@@ -786,16 +620,12 @@ function llenarDetalleSwarm(b) {
     : "Sin causa identificada.";
 
   const metaEl = document.getElementById("swarm-detalle-meta");
-  const fuenteHtml =
-    b.fuente && /^https?:\/\//i.test(b.fuente)
-      ? ` · <a href="${b.fuente}" target="_blank" rel="noopener">fuente</a>`
-      : "";
+  const fuenteHtml = b.fuente
+    ? ` · <a href="${b.fuente}" target="_blank" rel="noopener">fuente</a>`
+    : "";
   metaEl.innerHTML =
     `De ${Math.round(b.prev)} a ${b.n} inscripciones (${b.veces.toFixed(1)}x), ` +
     `+${b.extra} guaguas extra${fuenteHtml}`;
-
-  const iaEl = document.getElementById("swarm-detalle-ia");
-  if (iaEl) iaEl.hidden = !b.ia;
 
   dibujarDetalle(b, "swarm-grafico-detalle", color);
 }
@@ -823,13 +653,7 @@ function seleccionarNodoSwarm(d, circle) {
 
   nodoActivo = d;
   detalleActual = d.boom;
-  indiceCursorDetalle = Math.max(
-    0,
-    Math.min(
-      DATOS.anio_max - DATOS.anio_min,
-      d.boom.anio - DATOS.anio_min
-    )
-  );
+  indiceCursorDetalle = 0;
   ocultarTooltipSwarm();
 
   // Resaltar el punto seleccionado (borde rojo pulsante).
@@ -837,6 +661,11 @@ function seleccionarNodoSwarm(d, circle) {
     .querySelectorAll("#grafico-swarm .punto-seleccionado")
     .forEach((el) => el.classList.remove("punto-seleccionado"));
   circle.classList.add("punto-seleccionado");
+
+  // Perilla: reiniciar su origen para que el detalle empiece en 1920.
+  enviarProtobject({ tipo: "reset" }, "knob.html");
+  // Servo 180°: aguja según la magnitud del alza seleccionada.
+  enviarAnguloServo(d.boom.veces);
 
   // Sonificación: tono según la magnitud + narración de voz.
   asegurarAudio()
@@ -904,6 +733,9 @@ function volverSwarm() {
   detalleActual = null;
   indiceCursorDetalle = 0;
   clearTimeout(timerDetalleSwarm);
+
+  // Servo en reposo: el sketch decide el neutro (90 si es continuo, 0 si es de 180°).
+  enviarProtobject({ tipo: "servo", reposo: true }, "arduino.html");
 
   document
     .querySelectorAll("#grafico-swarm .punto-seleccionado")
@@ -1053,9 +885,6 @@ function dibujarSwarm() {
     .domain([3, 300])
     .range([H - margen.b, margen.t]);
 
-  centroXSwarm = centroX;
-  escalaYSwarm = y;
-
   // El layout de los 203 puntos se calcula una sola vez con todos ellos;
   // filtrar solo decide cuáles se dibujan, así cada punto aparece siempre
   // en el mismo lugar.
@@ -1180,7 +1009,7 @@ function actualizarPuntosSwarm() {
       (enter) =>
         enter
           .append("circle")
-          .attr("class", (d) => (d.ia ? "punto punto-ia" : "punto"))
+          .attr("class", "punto")
           .attr("data-id", (d) => d.id)
           .attr("cx", (d) => d.x)
           .attr("cy", (d) => d.y)
@@ -1212,19 +1041,6 @@ function initSwarm() {
 
   const atras = document.getElementById("swarm-atras");
   if (atras) atras.addEventListener("click", volverAtras);
-
-  const conectar = document.getElementById("conectar-dispositivos");
-  if (conectar) {
-    conectar.addEventListener("click", function (event) {
-      event.stopPropagation();
-      const plus = document.getElementById("ProtobjectPlusButton");
-      if (plus) {
-        plus.click();
-      } else {
-        estadoVoz("Protobject no está disponible en esta página.");
-      }
-    });
-  }
 }
 
 initSwarm();

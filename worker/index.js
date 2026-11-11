@@ -41,23 +41,28 @@ function limpiarJson(texto) {
 }
 
 function prompt(nombre) {
-  return `Genera una serie anual ESTIMADA de inscripciones de nacimiento para el nombre "${nombre}" en Chile, desde 1920 hasta 2025 inclusive (106 valores enteros no negativos, uno por año).
+  return `Estima la historia del nombre "${nombre}" en Chile.
 
-La serie debe ser plausible: valores bajos o cero al principio, un alza marcada en el año en que el nombre se hizo popular por televisión, música, cine, deporte, política, migración u otra causa, y luego una caída gradual. No es necesario que los datos sean reales; son una estimación.
-
-Elige UNA categoría exactamente de esta lista:
+Elige:
+- Un año de boom entre 1930 y 2025.
+- Una magnitud de alza ("veces") entre 2 y 30.
+- Una categoría exactamente de esta lista:
 ${CATEGORIAS.map((c) => `- ${c}`).join("\n")}
+- Una causa breve en español.
+- El sexo asociado: "F", "M" o "Sin dato".
 
-Devuelve SOLO un objeto JSON válido, sin markdown ni texto adicional, con esta forma:
+No devuelvas una serie anual: el backend la generará a partir del año y la magnitud.
+No es necesario que los datos sean reales; son una estimación.
+
+Devuelve SOLO un objeto JSON válido, sin markdown ni texto adicional:
 {
   "nombre": "${nombre}",
   "sexo": "F" | "M" | "Sin dato",
   "categoria": "una de las categorías de la lista",
-  "causa": "explicación breve en español",
-  "serie": [106 números enteros]
-}
-
-La serie debe tener exactamente 106 valores: 1920, 1921, ..., 2025.`;
+  "anio_boom": 1989,
+  "veces": 5.2,
+  "causa": "explicación breve en español"
+}`;
 }
 
 export default {
@@ -117,7 +122,7 @@ export default {
           ],
           response_format: { type: "json_object" },
           temperature: 0.4,
-          max_tokens: 3000,
+          max_tokens: 1000,
         }),
         signal: AbortSignal.timeout(30000),
       });

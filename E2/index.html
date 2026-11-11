@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nombres en boom — Entrega 2 (IIC2026)</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 24px;
+      background: #f9f9f7;
+      color: #0b0b0b;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    .inicio {
+      align-self: flex-start;
+      max-width: 900px;
+      width: 100%;
+      margin-bottom: 18px;
+      color: #2a78d6;
+      font-size: 0.95rem;
+      text-decoration: none;
+    }
+    .inicio:hover { text-decoration: underline; }
+    header {
+      max-width: 760px;
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(1.6rem, 4vw, 2.4rem);
+      line-height: 1.15;
+    }
+    header p {
+      margin: 0;
+      color: #52514e;
+      font-size: clamp(0.95rem, 1.8vw, 1.1rem);
+      line-height: 1.55;
+    }
+    .entregas {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 20px;
+      width: 100%;
+      max-width: 900px;
+    }
+    .entrega {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 28px;
+      border: 1px solid rgba(11, 11, 11, 0.1);
+      border-radius: 16px;
+      background: #fcfcfb;
+      color: inherit;
+      text-decoration: none;
+      box-shadow: 0 4px 16px rgba(11, 11, 11, 0.06);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+    .entrega:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 28px rgba(11, 11, 11, 0.12);
+      border-color: rgba(42, 120, 214, 0.45);
+    }
+    .etiqueta {
+      align-self: flex-start;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: #2a78d6;
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .entrega h2 {
+      margin: 0;
+      font-size: 1.35rem;
+      line-height: 1.2;
+    }
+    .entrega p {
+      margin: 0;
+      color: #52514e;
+      line-height: 1.55;
+      font-size: 0.95rem;
+      flex: 1;
+    }
+    .abrir {
+      margin-top: 4px;
+      color: #2a78d6;
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+    footer {
+      margin-top: 36px;
+      color: #898781;
+      font-size: 0.8rem;
+      text-align: center;
+    }
+    @media (max-width: 700px) {
+      .entregas { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <a class="inicio" href="../">← Inicio</a>
+
+  <header>
+    <h1>Nombres en boom — Entrega 2</h1>
+    <p>Elige la versión que quieres abrir.</p>
+  </header>
+
+  <div class="entregas">
+    <a class="entrega" href="v1/">
+      <span class="etiqueta">E2 · V1</span>
+      <h2>Interacción física</h2>
+      <p>
+        Perilla para recorrer el detalle, botones para navegar los puntos,
+        tarjetas NFC para filtrar categorías y un servo que indica la magnitud
+        del alza. Incluye la integración con Arduino.
+      </p>
+      <span class="abrir">Abrir V1 →</span>
+    </a>
+
+    <a class="entrega" href="v2/">
+      <span class="etiqueta">E2 · V2</span>
+      <h2>Voz e IA</h2>
+      <p>
+        Un botón y un micrófono en dos celulares: di un nombre y DeepSeek
+        genera su historia para agregarlo al beeswarm. Los datos de IA se
+        muestran como estimados.
+      </p>
+      <span class="abrir">Abrir V2 →</span>
+    </a>
+  </div>
+
+  <footer>Protobject · Arduino · DeepSeek · D3 · Plotly · Tone.js</footer>
+</body>
+</html>

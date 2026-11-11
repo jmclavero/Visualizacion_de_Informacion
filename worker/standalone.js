@@ -46,26 +46,66 @@ function nombreVisible(value) {
     .replace(/(^|\s)(\p{L})/gu, (_, espacio, letra) => espacio + letra.toUpperCase());
 }
 
-/**
- * Convierte la respuesta cruda del modelo en el formato de boom que usa la
- * visualizaciÃ³n. Calcula el aÃ±o de mayor alza a partir de la serie, para no
- * confiar en que el modelo haga esa cuenta.
- */
-export function construirBoom(nombre, raw) {
-  if (!raw || !Array.isArray(raw.serie)) return null;
+function hashNombre(nombre) {
+  let h = 2166136261;
+  const texto = normalizarNombre(nombre);
+  for (let i = 0; i < texto.length; i++) {
+    h ^= texto.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
 
-  let serie = raw.serie.map((v) => {
+function normalizarSerie(valor) {
+  if (!Array.isArray(valor)) return null;
+  const serie = valor.map((v) => {
     const n = Math.round(Number(v));
     return Number.isFinite(n) && n > 0 ? n : 0;
   });
-
   if (serie.length < N_ANIOS) {
-    serie = serie.concat(Array(N_ANIOS - serie.length).fill(0));
+    return serie.concat(Array(N_ANIOS - serie.length).fill(0));
   }
-  if (serie.length > N_ANIOS) {
-    serie = serie.slice(0, N_ANIOS);
-  }
+  return serie.slice(0, N_ANIOS);
+}
 
+/**
+ * Genera una serie anual plausible cuando el modelo no entrega una serie
+ * utilizable. El aÃ±o y la magnitud los decide el modelo.
+ */
+function generarSerie(anioBoom, veces, nombre) {
+  const indiceBoom = Math.max(
+    12,
+    Math.min(N_ANIOS - 1, anioBoom - ANIO_MIN)
+  );
+  const semilla = hashNombre(nombre);
+  const base = 12 + (semilla % 35); // 12..46
+  const pico = Math.max(base + 10, Math.round(base * veces));
+  const serie = [];
+
+  for (let i = 0; i < N_ANIOS; i++) {
+    let v;
+    if (i < indiceBoom - 3) {
+      const t = i / Math.max(1, indiceBoom - 3);
+      v = base * (0.25 + 0.75 * t);
+    } else if (i < indiceBoom) {
+      v = base;
+    } else if (i === indiceBoom) {
+      v = pico;
+    } else {
+      const d = i - indiceBoom;
+      v = pico * Math.exp(-d / 5.5) + base * 0.06;
+    }
+
+    // VariaciÃ³n determinista para que no sea una lÃ­nea perfecta.
+    if (i < indiceBoom - 3 || i > indiceBoom) {
+      v += ((semilla + i * 7) % 7) - 3;
+    }
+    serie.push(Math.max(0, Math.round(v)));
+  }
+  return serie;
+}
+
+function detectarBoom(serie) {
   let mejor = null;
   for (let i = 3; i < N_ANIOS; i++) {
     const previo = (serie[i - 1] + serie[i - 2] + serie[i - 3]) / 3;
@@ -91,10 +131,38 @@ export function construirBoom(nombre, raw) {
       ratio: previo > 0 ? serie[iMax] / previo : 0,
     };
   }
+  return mejor;
+}
 
-  const anio = ANIO_MIN + mejor.i;
-  const n = serie[mejor.i];
-  const prev = Math.round(mejor.previo);
+/**
+ * Convierte la respuesta del modelo en el boom que usa la visualizaciÃ³n.
+ * Si el modelo trae una serie con un alza clara, se usa. Si no, se genera
+ * una serie a partir de anio_boom y veces.
+ */
+export function construirBoom(nombre, raw) {
+  if (!raw) return null;
+
+  let serie = normalizarSerie(raw.serie);
+  let boom = serie ? detectarBoom(serie) : null;
+
+  // Si la serie viene vacÃ­a, plana o sin alza, generamos una plausible.
+  if (!serie || !boom || boom.ratio < 1.2) {
+    const anioModelo = Number(raw.anio_boom);
+    const anioBoom = Number.isFinite(anioModelo)
+      ? Math.max(1930, Math.min(ANIO_MAX, Math.round(anioModelo)))
+      : 1980;
+    const vecesModelo = Number(raw.veces);
+    const veces = Number.isFinite(vecesModelo)
+      ? Math.max(2, Math.min(30, vecesModelo))
+      : 8;
+
+    serie = generarSerie(anioBoom, veces, nombre);
+    boom = detectarBoom(serie);
+  }
+
+  const anio = ANIO_MIN + boom.i;
+  const n = serie[boom.i];
+  const prev = Math.round(boom.previo);
   const extra = n - prev;
   const veces = prev > 0 ? Math.round((n / prev) * 10) / 10 : 0;
 
@@ -180,23 +248,28 @@ function limpiarJson(texto) {
 }
 
 function prompt(nombre) {
-  return `Genera una serie anual ESTIMADA de inscripciones de nacimiento para el nombre "${nombre}" en Chile, desde 1920 hasta 2025 inclusive (106 valores enteros no negativos, uno por aÃ±o).
+  return `Estima la historia del nombre "${nombre}" en Chile.
 
-La serie debe ser plausible: valores bajos o cero al principio, un alza marcada en el aÃ±o en que el nombre se hizo popular por televisiÃ³n, mÃºsica, cine, deporte, polÃ­tica, migraciÃ³n u otra causa, y luego una caÃ­da gradual. No es necesario que los datos sean reales; son una estimaciÃ³n.
-
-Elige UNA categorÃ­a exactamente de esta lista:
+Elige:
+- Un aÃ±o de boom entre 1930 y 2025.
+- Una magnitud de alza ("veces") entre 2 y 30.
+- Una categorÃ­a exactamente de esta lista:
 ${CATEGORIAS.map((c) => `- ${c}`).join("\n")}
+- Una causa breve en espaÃ±ol.
+- El sexo asociado: "F", "M" o "Sin dato".
 
-Devuelve SOLO un objeto JSON vÃ¡lido, sin markdown ni texto adicional, con esta forma:
+No devuelvas una serie anual: el backend la generarÃ¡ a partir del aÃ±o y la magnitud.
+No es necesario que los datos sean reales; son una estimaciÃ³n.
+
+Devuelve SOLO un objeto JSON vÃ¡lido, sin markdown ni texto adicional:
 {
   "nombre": "${nombre}",
   "sexo": "F" | "M" | "Sin dato",
   "categoria": "una de las categorÃ­as de la lista",
-  "causa": "explicaciÃ³n breve en espaÃ±ol",
-  "serie": [106 nÃºmeros enteros]
-}
-
-La serie debe tener exactamente 106 valores: 1920, 1921, ..., 2025.`;
+  "anio_boom": 1989,
+  "veces": 5.2,
+  "causa": "explicaciÃ³n breve en espaÃ±ol"
+}`;
 }
 
 export default {
@@ -256,7 +329,7 @@ export default {
           ],
           response_format: { type: "json_object" },
           temperature: 0.4,
-          max_tokens: 3000,
+          max_tokens: 1000,
         }),
         signal: AbortSignal.timeout(30000),
       });
