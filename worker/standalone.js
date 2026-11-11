@@ -1,30 +1,30 @@
-﻿export const ANIO_MIN = 1920;
+export const ANIO_MIN = 1920;
 export const ANIO_MAX = 2025;
 export const N_ANIOS = ANIO_MAX - ANIO_MIN + 1; // 106
 
 export const CATEGORIAS = [
   "Teleserie",
-  "MÃºsica / ViÃ±a",
-  "Series y animaciÃ³n",
+  "Música / Viña",
+  "Series y animación",
   "TV en vivo",
-  "PolÃ­tica, realeza y noticias",
+  "Política, realeza y noticias",
   "Cine",
   "Deporte",
   "Ciencia y espacio",
-  "MigraciÃ³n",
+  "Migración",
   "Sin identificar",
 ];
 
 export const GRUPO = {
   "Teleserie": "Teleseries",
-  "MÃºsica / ViÃ±a": "MÃºsica / ViÃ±a",
-  "Series y animaciÃ³n": "Otras causas televisivas",
+  "Música / Viña": "Música / Viña",
+  "Series y animación": "Otras causas televisivas",
   "TV en vivo": "Otras causas televisivas",
-  "PolÃ­tica, realeza y noticias": "No televisivas",
+  "Política, realeza y noticias": "No televisivas",
   "Cine": "No televisivas",
   "Deporte": "No televisivas",
   "Ciencia y espacio": "No televisivas",
-  "MigraciÃ³n": "No televisivas",
+  "Migración": "No televisivas",
   "Sin identificar": "Sin identificar",
 };
 
@@ -70,7 +70,7 @@ function normalizarSerie(valor) {
 
 /**
  * Genera una serie anual plausible cuando el modelo no entrega una serie
- * utilizable. El aÃ±o y la magnitud los decide el modelo.
+ * utilizable. El año y la magnitud los decide el modelo.
  */
 function generarSerie(anioBoom, veces, nombre) {
   const indiceBoom = Math.max(
@@ -96,7 +96,7 @@ function generarSerie(anioBoom, veces, nombre) {
       v = pico * Math.exp(-d / 5.5) + base * 0.06;
     }
 
-    // VariaciÃ³n determinista para que no sea una lÃ­nea perfecta.
+    // Variación determinista para que no sea una línea perfecta.
     if (i < indiceBoom - 3 || i > indiceBoom) {
       v += ((semilla + i * 7) % 7) - 3;
     }
@@ -135,7 +135,7 @@ function detectarBoom(serie) {
 }
 
 /**
- * Convierte la respuesta del modelo en el boom que usa la visualizaciÃ³n.
+ * Convierte la respuesta del modelo en el boom que usa la visualización.
  * Si el modelo trae una serie con un alza clara, se usa. Si no, se genera
  * una serie a partir de anio_boom y veces.
  */
@@ -145,7 +145,7 @@ export function construirBoom(nombre, raw) {
   let serie = normalizarSerie(raw.serie);
   let boom = serie ? detectarBoom(serie) : null;
 
-  // Si la serie viene vacÃ­a, plana o sin alza, generamos una plausible.
+  // Si la serie viene vacía, plana o sin alza, generamos una plausible.
   if (!serie || !boom || boom.ratio < 1.2) {
     const anioModelo = Number(raw.anio_boom);
     const anioBoom = Number.isFinite(anioModelo)
@@ -168,7 +168,7 @@ export function construirBoom(nombre, raw) {
 
   const GRUPOS = [
     "Teleseries",
-    "MÃºsica / ViÃ±a",
+    "Música / Viña",
     "Otras causas televisivas",
     "No televisivas",
     "Sin identificar",
@@ -210,7 +210,7 @@ export function construirBoom(nombre, raw) {
 const DEEPSEEK_URL = "https://api.deepseek.com/chat/completions";
 const MODELO = "deepseek-chat";
 
-// OrÃ­genes permitidos: GitHub Pages y servidores locales de desarrollo.
+// Orígenes permitidos: GitHub Pages y servidores locales de desarrollo.
 const ORIGENES = new Set([
   "https://jmclavero.github.io",
   "http://localhost:8000",
@@ -251,24 +251,24 @@ function prompt(nombre) {
   return `Estima la historia del nombre "${nombre}" en Chile.
 
 Elige:
-- Un aÃ±o de boom entre 1930 y 2025.
+- Un año de boom entre 1930 y 2025.
 - Una magnitud de alza ("veces") entre 2 y 30.
-- Una categorÃ­a exactamente de esta lista:
+- Una categoría exactamente de esta lista:
 ${CATEGORIAS.map((c) => `- ${c}`).join("\n")}
-- Una causa breve en espaÃ±ol.
+- Una causa breve en español.
 - El sexo asociado: "F", "M" o "Sin dato".
 
-No devuelvas una serie anual: el backend la generarÃ¡ a partir del aÃ±o y la magnitud.
-No es necesario que los datos sean reales; son una estimaciÃ³n.
+No devuelvas una serie anual: el backend la generará a partir del año y la magnitud.
+No es necesario que los datos sean reales; son una estimación.
 
-Devuelve SOLO un objeto JSON vÃ¡lido, sin markdown ni texto adicional:
+Devuelve SOLO un objeto JSON válido, sin markdown ni texto adicional:
 {
   "nombre": "${nombre}",
   "sexo": "F" | "M" | "Sin dato",
-  "categoria": "una de las categorÃ­as de la lista",
+  "categoria": "una de las categorías de la lista",
   "anio_boom": 1989,
   "veces": 5.2,
-  "causa": "explicaciÃ³n breve en espaÃ±ol"
+  "causa": "explicación breve en español"
 }`;
 }
 
@@ -281,20 +281,20 @@ export default {
     }
 
     if (request.method !== "POST") {
-      return respuestaJson({ error: "MÃ©todo no permitido." }, 405, origin);
+      return respuestaJson({ error: "Método no permitido." }, 405, origin);
     }
 
     let body;
     try {
       body = await request.json();
     } catch {
-      return respuestaJson({ error: "JSON invÃ¡lido." }, 400, origin);
+      return respuestaJson({ error: "JSON inválido." }, 400, origin);
     }
 
     const nombre = String(body?.nombre || "").trim();
     if (!/^[\p{L}\s'.-]{2,40}$/u.test(nombre)) {
       return respuestaJson(
-        { error: "Nombre invÃ¡lido. Usa solo letras y espacios." },
+        { error: "Nombre inválido. Usa solo letras y espacios." },
         400,
         origin
       );
@@ -323,7 +323,7 @@ export default {
             {
               role: "system",
               content:
-                "Eres un analista de nombres chilenos. Respondes siempre con JSON vÃ¡lido y datos estimados, sin explicaciones fuera del JSON.",
+                "Eres un analista de nombres chilenos. Respondes siempre con JSON válido y datos estimados, sin explicaciones fuera del JSON.",
             },
             { role: "user", content: prompt(nombre) },
           ],
@@ -345,7 +345,7 @@ export default {
       const detalle = await deepseek.text();
       console.error("DeepSeek error", deepseek.status, detalle.slice(0, 500));
       return respuestaJson(
-        { error: "DeepSeek respondiÃ³ con error " + deepseek.status + "." },
+        { error: "DeepSeek respondió con error " + deepseek.status + "." },
         502,
         origin
       );
@@ -355,12 +355,12 @@ export default {
     try {
       data = await deepseek.json();
     } catch {
-      return respuestaJson({ error: "Respuesta invÃ¡lida de DeepSeek." }, 502, origin);
+      return respuestaJson({ error: "Respuesta inválida de DeepSeek." }, 502, origin);
     }
 
     const contenido = data?.choices?.[0]?.message?.content;
     if (!contenido) {
-      return respuestaJson({ error: "DeepSeek no devolviÃ³ contenido." }, 502, origin);
+      return respuestaJson({ error: "DeepSeek no devolvió contenido." }, 502, origin);
     }
 
     let raw;
@@ -368,7 +368,7 @@ export default {
       raw = JSON.parse(limpiarJson(contenido));
     } catch {
       return respuestaJson(
-        { error: "DeepSeek no devolviÃ³ un JSON vÃ¡lido." },
+        { error: "DeepSeek no devolvió un JSON válido." },
         502,
         origin
       );
@@ -386,4 +386,3 @@ export default {
     return respuestaJson(boom, 200, origin);
   },
 };
-
