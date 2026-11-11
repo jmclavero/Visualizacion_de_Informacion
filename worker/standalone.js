@@ -194,8 +194,86 @@ function construirBoom(nombre, raw) {
 // Mezcla Tavily (opcional), Wikipedia en español y Google News RSS.
 // El modelo SOLO puede clasificar/citar lo que aparezca aquí.
 
-const MAX_FUENTES = 8;
-const MAX_TEXTO = 700;
+const MAX_FUENTES = 12;
+const MAX_TEXTO = 800;
+const WIKI_HEADERS = {
+  "User-Agent":
+    "NombresChile/1.0 (https://jmclavero.github.io/Visualizacion_de_Informacion/; proyecto educativo)",
+  "Api-User-Agent":
+    "NombresChile/1.0 (https://jmclavero.github.io/Visualizacion_de_Informacion/; proyecto educativo)",
+};
+
+const TIPOS = [
+  {
+    patron: /telenovela/i,
+    categoria: "Teleserie",
+    etiqueta: "telenovela",
+    palabras: /\b(telenovela|culebr[oó]n|melodrama)\b/i,
+  },
+  {
+    patron: /(serie de televisi[oó]n|serie de tv|series de televisi[oó]n|serie dram[aá]tica)/i,
+    categoria: "Series y animación",
+    etiqueta: "serie de televisión",
+    palabras: /\b(serie|temporada|episodio|protagonista)\b/i,
+  },
+  {
+    patron: /(programa de televisi[oó]n|programa de tv|reality|concurso|late show|matinal)/i,
+    categoria: "TV en vivo",
+    etiqueta: "programa de televisión",
+    palabras: /\b(programa|reality|concurso|matinal|conducci[oó]n)\b/i,
+  },
+  {
+    patron: /(pel[ií]cula|largometraje|film|filme)/i,
+    categoria: "Cine",
+    etiqueta: "película",
+    palabras: /\b(pel[ií]cula|film|largometraje|director|protagonista)\b/i,
+  },
+  {
+    patron: /(canci[oó]n|sencillo|single|[aá]lbum|disco|banda sonora)/i,
+    categoria: "Música / Viña",
+    etiqueta: "canción o álbum",
+    palabras: /\b(canci[oó]n|sencillo|[aá]lbum|disco|int[eé]rprete|cantante|Viña del Mar)\b/i,
+  },
+  {
+    patron:
+      /\b(pol[ií]tic[ao]s?|presidente|presidenta|reina|realeza|elecci[oó]n(?:es)?|ministr[oa]|congreso)\b/i,
+    categoria: "Política, realeza y noticias",
+    etiqueta: "tema político o de actualidad",
+  },
+  {
+    patron:
+      /\b(f[uú]tbol|deporte|deportes|atleta|tenis|selecci[oó]n|ol[ií]mpic[oa]s?)\b/i,
+    categoria: "Deporte",
+    etiqueta: "tema deportivo",
+  },
+  {
+    patron: /\b(migraci[oó]n|inmigrante|extranjero|refugiado)\b/i,
+    categoria: "Migración",
+    etiqueta: "tema migratorio",
+  },
+  {
+    patron: /\b(espacio|astronauta|ciencia|planeta|nasa)\b/i,
+    categoria: "Ciencia y espacio",
+    etiqueta: "tema científico o espacial",
+  },
+];
+
+function normalizarTexto(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizarUrl(url) {
+  return String(url || "")
+    .trim()
+    .replace(/[),.;]+$/, "")
+    .replace(/\/+$/, "")
+    .toLowerCase();
+}
 
 function limpiarHtml(texto) {
   return String(texto || "")
@@ -217,14 +295,6 @@ function recortar(texto, max = MAX_TEXTO) {
   return limpio.length > max ? limpio.slice(0, max) + "…" : limpio;
 }
 
-function normalizarUrl(url) {
-  return String(url || "")
-    .trim()
-    .replace(/[),.;]+$/, "")
-    .replace(/\/+$/, "")
-    .toLowerCase();
-}
-
 async function fetchJson(url, opciones = {}, timeout = 9000) {
   const respuesta = await fetch(url, {
     ...opciones,
@@ -234,64 +304,100 @@ async function fetchJson(url, opciones = {}, timeout = 9000) {
   return respuesta.json();
 }
 
-async function buscarTavily(nombre, anio, apiKey) {
-  if (!apiKey) return [];
-  const consulta = `"${nombre}" Chile ${anio || ""} nombre famoso causa`.trim();
-  try {
-    const data = await fetchJson(
-      "https://api.tavily.com/search",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          query: consulta,
-          search_depth: "basic",
-          max_results: 5,
-          include_answer: false,
-          include_raw_content: false,
-        }),
-      },
-      12000
-    );
-    return (data?.results || [])
-      .filter((r) => r && r.url)
-      .map((r) => ({
-        origen: "Tavily",
-        titulo: recortar(r.title || r.url, 180),
-        url: String(r.url),
-        texto: recortar(r.content || ""),
-      }));
-  } catch {
-    return [];
-  }
+function extraerAnio(texto) {
+  const encontrado = String(texto || "").match(/\b(19\d{2}|20\d{2})\b/);
+  return encontrado ? Number(encontrado[1]) : null;
 }
 
-async function buscarWikipedia(nombre, anio) {
-  // Buscamos el nombre exacto: así aparecen telenovelas, series, canciones o
-  // personajes homónimos, que son las causas típicas de un alza. El año del
-  // boom no siempre coincide con el año de la obra, por eso no lo forzamos.
-  const consulta = `"${nombre}"`;
+function detectarTipoFuente(titulo) {
+  const texto = String(titulo || "");
+  return TIPOS.find((tipo) => tipo.patron.test(texto)) || null;
+}
+
+/**
+ * Solo consideramos que una fuente "es una obra" si el título empieza con el
+ * nombre y luego viene el tipo entre paréntesis o tras dos puntos. Así
+ * evitamos confundir una noticia sobre "Emilia ... nuevo disco" con una
+ * canción llamada Emilia.
+ */
+function tituloPareceObra(titulo, nombre) {
+  const tituloNorm = normalizarTexto(titulo);
+  const nombreNorm = normalizarTexto(nombre);
+  if (!nombreNorm || !tituloNorm.startsWith(nombreNorm)) return false;
+
+  const resto = tituloNorm.slice(nombreNorm.length).trim();
+  if (!resto) return false;
+
+  return /^[\s([{\-–—:,"']*(telenovela|serie|pel[ií]cula|canci[oó]n|[aá]lbum|programa|disco|sencillo)\b/i.test(
+    resto
+  );
+}
+
+function puntuarFuente(fuente, nombre, anio) {
+  const nombreNorm = normalizarTexto(nombre);
+  const tituloNorm = normalizarTexto(fuente.titulo);
+  const textoNorm = normalizarTexto(fuente.texto);
+  const tipo = detectarTipoFuente(fuente.titulo);
+  const tipoObra = tipo && tituloPareceObra(fuente.titulo, nombre) ? tipo : null;
+  const anioFuente = extraerAnio(fuente.titulo);
+
+  let score = 0;
+  if (tituloNorm.includes(nombreNorm)) score += 6;
+  if (textoNorm.includes(nombreNorm)) score += 1;
+  if (tipoObra) score += 4;
+  if (anio && anioFuente) {
+    const distancia = Math.abs(anioFuente - anio);
+    if (distancia <= 5) score += 5;
+    else if (distancia <= 10) score += 1;
+    else score -= 3;
+  }
+  if (fuente.origen === "Tavily") score += 1;
+  if (/nombre|bautiz|popular|moda|famosa|famoso/i.test(fuente.texto)) score += 1;
+
+  return { score, tipo: tipoObra, anioFuente };
+}
+
+async function buscarWikipedia(nombre, consultasExtra = []) {
+  // Dos búsquedas base y una sola llamada de extractos: menos peticiones y
+  // menos riesgo de que Wikipedia nos limite.
+  const consultas = [
+    `intitle:"${nombre}"`,
+    `"${nombre}" telenovela OR serie OR canción OR película OR programa`,
+    ...consultasExtra,
+  ].filter((consulta, i, arr) => consulta && arr.indexOf(consulta) === i);
+
   try {
-    const busqueda = await fetchJson(
-      "https://es.wikipedia.org/w/api.php?" +
-        new URLSearchParams({
-          action: "query",
-          list: "search",
-          srsearch: consulta,
-          srlimit: "4",
-          format: "json",
-          formatversion: "2",
-          utf8: "1",
-          origin: "*",
-        })
+    const busquedas = await Promise.all(
+      consultas.map((consulta) =>
+        fetchJson(
+          "https://es.wikipedia.org/w/api.php?" +
+            new URLSearchParams({
+              action: "query",
+              list: "search",
+              srsearch: consulta,
+              srlimit: "5",
+              format: "json",
+              formatversion: "2",
+              utf8: "1",
+              origin: "*",
+            }),
+          { headers: WIKI_HEADERS }
+        ).catch(() => null)
+      )
     );
-    const resultados = busqueda?.query?.search || [];
+
+    const resultados = [];
+    const vistos = new Set();
+    for (const busqueda of busquedas) {
+      for (const r of busqueda?.query?.search || []) {
+        if (!r?.title || vistos.has(r.title)) continue;
+        vistos.add(r.title);
+        resultados.push(r);
+      }
+    }
     if (!resultados.length) return [];
 
-    const titulos = resultados.map((r) => r.title).join("|");
+    const titulos = resultados.slice(0, 16).map((r) => r.title).join("|");
     let extractos = {};
     try {
       const detalle = await fetchJson(
@@ -306,7 +412,8 @@ async function buscarWikipedia(nombre, anio) {
             formatversion: "2",
             utf8: "1",
             origin: "*",
-          })
+          }),
+        { headers: WIKI_HEADERS }
       );
       for (const pagina of detalle?.query?.pages || []) {
         extractos[pagina.title] = pagina.extract || "";
@@ -318,7 +425,9 @@ async function buscarWikipedia(nombre, anio) {
     return resultados.map((r) => ({
       origen: "Wikipedia",
       titulo: r.title,
-      url: "https://es.wikipedia.org/wiki/" + encodeURIComponent(r.title.replace(/ /g, "_")),
+      url:
+        "https://es.wikipedia.org/wiki/" +
+        encodeURIComponent(r.title.replace(/ /g, "_")),
       texto: recortar(extractos[r.title] || r.snippet || ""),
     }));
   } catch {
@@ -326,73 +435,157 @@ async function buscarWikipedia(nombre, anio) {
   }
 }
 
-async function buscarGoogleNews(nombre, anio) {
-  const consulta = `"${nombre}" Chile ${anio || ""} nombre`;
-  const url =
-    "https://news.google.com/rss/search?" +
-    new URLSearchParams({
-      q: consulta.trim(),
-      hl: "es-CL",
-      gl: "CL",
-      ceid: "CL:es",
-    });
+function parsearRss(xml) {
+  return [...String(xml || "").matchAll(/<item>([\s\S]*?)<\/item>/gi)]
+    .slice(0, 5)
+    .map((m) => {
+      const bloque = m[1];
+      const tag = (nombreTag) => {
+        const encontrado = bloque.match(
+          new RegExp(`<${nombreTag}[^>]*>([\\s\\S]*?)<\\/${nombreTag}>`, "i")
+        );
+        return encontrado ? encontrado[1] : "";
+      };
+      return {
+        titulo: recortar(tag("title"), 200),
+        url: limpiarHtml(tag("link")),
+        texto: recortar(tag("description")),
+      };
+    })
+    .filter((f) => f.url && /^https?:\/\//i.test(f.url));
+}
+
+async function buscarGoogleNews(nombre, anio, consultasExtra = []) {
+  const consultas = [
+    `"${nombre}" Chile ${anio || ""}`.trim(),
+    `"${nombre}" telenovela OR serie OR canción Chile`.trim(),
+    `"${nombre}" nombre Chile`.trim(),
+    ...consultasExtra,
+  ].filter((consulta, i, arr) => consulta && arr.indexOf(consulta) === i);
 
   try {
-    const respuesta = await fetch(url, { signal: AbortSignal.timeout(9000) });
-    if (!respuesta.ok) return [];
-    const xml = await respuesta.text();
-    const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/gi)].slice(0, 5);
-
-    return items
-      .map((m) => {
-        const bloque = m[1];
-        const tag = (nombreTag) => {
-          const encontrado = bloque.match(
-            new RegExp(`<${nombreTag}[^>]*>([\\s\\S]*?)<\\/${nombreTag}>`, "i")
-          );
-          return encontrado ? encontrado[1] : "";
-        };
-        return {
-          origen: "Google News",
-          titulo: recortar(tag("title"), 180),
-          url: limpiarHtml(tag("link")),
-          texto: recortar(tag("description")),
-        };
+    const respuestas = await Promise.all(
+      consultas.map(async (consulta) => {
+        const url =
+          "https://news.google.com/rss/search?" +
+          new URLSearchParams({
+            q: consulta,
+            hl: "es-CL",
+            gl: "CL",
+            ceid: "CL:es",
+          });
+        try {
+          const respuesta = await fetch(url, {
+            signal: AbortSignal.timeout(9000),
+          });
+          if (!respuesta.ok) return [];
+          return parsearRss(await respuesta.text());
+        } catch {
+          return [];
+        }
       })
-      .filter((f) => f.url && /^https?:\/\//i.test(f.url));
+    );
+
+    return respuestas
+      .flat()
+      .map((f) => ({ origen: "Google News", ...f }));
+  } catch {
+    return [];
+  }
+}
+
+async function buscarTavily(nombre, anio, apiKey, consultasExtra = []) {
+  if (!apiKey) return [];
+  const consultas = [
+    `"${nombre}" Chile ${anio || ""} nombre popularidad motivo ` +
+      "telenovela serie canción película",
+    ...consultasExtra.slice(0, 2),
+  ];
+
+  try {
+    const respuestas = await Promise.all(
+      consultas.map((consulta) =>
+        fetchJson(
+          "https://api.tavily.com/search",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+              query: consulta,
+              search_depth: "advanced",
+              max_results: 10,
+              include_answer: false,
+              include_raw_content: false,
+            }),
+          },
+          15000
+        ).catch(() => null)
+      )
+    );
+
+    return respuestas
+      .flatMap((data) => data?.results || [])
+      .filter((r) => r && r.url)
+      .map((r) => ({
+        origen: "Tavily",
+        titulo: recortar(r.title || r.url, 200),
+        url: String(r.url),
+        texto: recortar(r.content || ""),
+      }));
   } catch {
     return [];
   }
 }
 
 /**
- * Devuelve una lista de fuentes reales deduplicadas.
- * Nunca inventa fuentes: si todas las búsquedas fallan, devuelve [].
+ * Devuelve una lista de fuentes reales deduplicadas y ordenadas por
+ * relevancia. Nunca inventa fuentes: si todas las búsquedas fallan, [].
  */
-async function buscarFuentes(nombre, anio, env = {}) {
+async function buscarFuentes(nombre, anio, env = {}, consultasExtra = []) {
   const [tavily, wikipedia, noticias] = await Promise.all([
-    buscarTavily(nombre, anio, env.TAVILY_API_KEY),
-    buscarWikipedia(nombre, anio),
-    buscarGoogleNews(nombre, anio),
+    buscarTavily(nombre, anio, env.TAVILY_API_KEY, consultasExtra),
+    buscarWikipedia(nombre, consultasExtra),
+    buscarGoogleNews(nombre, anio, consultasExtra),
   ]);
 
+  const nombreNorm = normalizarTexto(nombre);
   const vistos = new Set();
   const fuentes = [];
+
   for (const fuente of [...tavily, ...wikipedia, ...noticias]) {
-    const clave = normalizarUrl(fuente.url) + "|" + fuente.titulo.toLowerCase();
-    if (!fuente.url || vistos.has(clave)) continue;
+    if (!fuente.url) continue;
+    const textoCompleto = normalizarTexto(fuente.titulo + " " + fuente.texto);
+    if (!textoCompleto.includes(nombreNorm)) continue;
+
+    const clave = normalizarUrl(fuente.url) + "|" + normalizarTexto(fuente.titulo);
+    if (vistos.has(clave)) continue;
     vistos.add(clave);
-    fuentes.push(fuente);
-    if (fuentes.length >= MAX_FUENTES) break;
+
+    const { score, tipo, anioFuente } = puntuarFuente(fuente, nombre, anio);
+    fuentes.push({
+      ...fuente,
+      tipo: tipo ? { categoria: tipo.categoria, etiqueta: tipo.etiqueta } : null,
+      anio_fuente: anioFuente,
+      score,
+    });
   }
-  return fuentes;
+
+  return fuentes
+    .sort((a, b) => b.score - a.score)
+    .slice(0, MAX_FUENTES);
 }
 
 function formatearFuentes(fuentes) {
   return fuentes
     .map(
       (f, i) =>
-        `[${i + 1}] (${f.origen}) ${f.titulo}\nURL: ${f.url}\n${f.texto}`
+        `[${i + 1}] (${f.origen}) ${f.titulo}\n` +
+        `Tipo: ${f.tipo?.etiqueta || "sin tipo detectado"} · Año: ${
+          f.anio_fuente || "sin año"
+        }\nURL: ${f.url}\n${f.texto}`
     )
     .join("\n\n");
 }
@@ -401,6 +594,63 @@ function obtenerFuente(url, fuentes) {
   const buscada = normalizarUrl(url);
   if (!buscada) return null;
   return fuentes.find((f) => normalizarUrl(f.url) === buscada) || null;
+}
+
+function resumenFuentes(fuentes, max = 6) {
+  return fuentes.slice(0, max).map((f) => ({
+    titulo: f.titulo,
+    url: f.url,
+    origen: f.origen,
+    tipo: f.tipo?.etiqueta || "",
+    anio: f.anio_fuente || null,
+  }));
+}
+
+/**
+ * Si el modelo no se atreve a afirmar una causa, pero existe una fuente con
+ * el mismo nombre y un tipo claro (telenovela, serie, canción, película...)
+ * cerca del año del alza, devolvemos una causa PROBABLE, siempre citada.
+ */
+function elegirCausaProbable(nombre, anio, fuentes) {
+  const nombreNorm = normalizarTexto(nombre);
+  const candidatos = fuentes
+    .filter((f) => f.tipo && normalizarTexto(f.titulo).includes(nombreNorm))
+    .map((f) => {
+      let cercania = 0;
+      if (anio && f.anio_fuente) {
+        const distancia = Math.abs(f.anio_fuente - anio);
+        if (distancia <= 5) cercania = 3;
+        else if (distancia <= 10) cercania = 1;
+        else if (distancia > 15) cercania = -5;
+      }
+      return { f, puntaje: f.score + cercania };
+    })
+    .filter((c) => {
+      if (anio && c.f.anio_fuente) {
+        return Math.abs(c.f.anio_fuente - anio) <= 15;
+      }
+      return true;
+    })
+    .sort((a, b) => b.puntaje - a.puntaje);
+
+  if (!candidatos.length) return null;
+
+  const f = candidatos[0].f;
+  const anioTexto = f.anio_fuente ? ` (${f.anio_fuente})` : "";
+  const causa =
+    `Coincide con «${f.titulo}»${anioTexto}, una ${f.tipo.etiqueta} cercana ` +
+    `al alza${anio ? ` de ${anio}` : ""}; la fuente no confirma una relación ` +
+    "causal directa.";
+
+  return {
+    categoria: f.tipo.categoria,
+    causa,
+    fuente: f.url,
+    fuente_titulo: f.titulo,
+    evidencia: f.titulo,
+    tipo: "probable",
+    confianza: "Baja",
+  };
 }
 
 const DEEPSEEK_URL = "https://api.deepseek.com/chat/completions";
@@ -457,13 +707,87 @@ function pareceSinCausa(texto) {
   );
 }
 
-function resultadoSinCausa() {
+function resultadoSinCausa(fuentes = []) {
   return {
     categoria: "Sin identificar",
     categoria_viz: "Sin identificar",
     causa: "Sin causa verificada",
     fuente: "",
+    fuente_titulo: "",
+    evidencia: "",
+    tipo: "sin_causa",
     confianza: "Sin verificar",
+    fuentes: resumenFuentes(fuentes),
+  };
+}
+
+function evidenciaEnFuente(evidencia, fuente) {
+  const buscada = normalizarTexto(evidencia);
+  if (!buscada) return false;
+  return normalizarTexto(fuente.texto + " " + fuente.titulo).includes(buscada);
+}
+
+function fuenteFuerte(fuente, nombre, anio) {
+  if (!fuente?.tipo) return false;
+  if (!normalizarTexto(fuente.titulo).includes(normalizarTexto(nombre))) {
+    return false;
+  }
+  if (anio && fuente.anio_fuente) {
+    return Math.abs(fuente.anio_fuente - anio) <= 15;
+  }
+  return true;
+}
+
+function normalizarResultadoCausa(raw, fuentes, nombre, anio) {
+  if (!raw || raw.tipo === "sin_causa") return null;
+
+  const categoria = categoriaValida(raw.categoria);
+  const causa = String(raw.causa || "").trim().slice(0, 320);
+  const fuente = obtenerFuente(raw.fuente, fuentes);
+  const evidencia = String(raw.evidencia || "").trim().slice(0, 400);
+
+  if (
+    !categoria ||
+    categoria === "Sin identificar" ||
+    !causa ||
+    pareceSinCausa(causa) ||
+    !fuente
+  ) {
+    return null;
+  }
+
+  const evidenciaValida = evidenciaEnFuente(evidencia, fuente);
+  let tipo = raw.tipo === "probable" ? "probable" : "documentada";
+
+  // Una causa "documentada" sin cita comprobable se rebaja a probable si la
+  // fuente es claramente una obra/programa con el mismo nombre.
+  if (tipo === "documentada" && !evidenciaValida) {
+    if (fuenteFuerte(fuente, nombre, anio)) tipo = "probable";
+    else return null;
+  }
+
+  // Una causa probable sin cita solo se acepta si la fuente es fuerte.
+  if (tipo === "probable" && !evidenciaValida && !fuenteFuerte(fuente, nombre, anio)) {
+    return null;
+  }
+
+  const confianza =
+    tipo === "documentada"
+      ? ["Alta", "Media", "Baja"].includes(raw.confianza)
+        ? raw.confianza
+        : "Media"
+      : "Baja";
+
+  return {
+    categoria,
+    categoria_viz: GRUPO[categoria] || "Sin identificar",
+    causa,
+    fuente: fuente.url,
+    fuente_titulo: fuente.titulo,
+    evidencia: evidencia || fuente.titulo,
+    tipo,
+    confianza,
+    fuentes: resumenFuentes(fuentes),
   };
 }
 
@@ -475,24 +799,38 @@ Alza: ${veces}x en el Registro Civil de Chile.
 Fuentes reales encontradas (usa SOLO estas):
 ${formatearFuentes(fuentes)}
 
-Clasifica la causa del alza de este nombre en Chile usando únicamente las fuentes.
+Clasifica el motivo del alza de este nombre en Chile usando únicamente las fuentes.
 Categorías permitidas:
 ${CATEGORIAS.map((c) => `- ${c}`).join("\n")}
 
-Reglas obligatorias:
-- No inventes hechos, años, programas, canciones ni personas.
-- La causa debe ser una frase breve en español respaldada por una fuente.
+Reglas:
+- "documentada": una fuente afirma explícitamente que una obra, programa,
+  personaje, canción, película, hecho o figura popularizó o impulsó el nombre.
+- "probable": existe una telenovela, serie, programa, canción, película o
+  hecho con el mismo nombre y cercano al año del alza, pero la fuente no
+  afirma directamente que haya causado el alza. Debes decirlo así.
+- No confundas una simple coincidencia con una persona famosa homónima con
+  una causa del alza.
+- La causa debe ser una frase breve, clara y en español.
 - "fuente" debe ser la URL EXACTA de una de las fuentes de arriba.
-- Si las fuentes no permiten sostener una causa con sentido, devuelve:
-  categoria "Sin identificar", causa "Sin causa verificada", fuente "".
-- No confundas una coincidencia de nombre con una causa.
+- "evidencia" debe ser una cita textual de esa fuente; si no hay una cita
+  clara, deja la cadena vacía y usa "probable".
+- Si ninguna fuente permite sostener una causa con sentido, devuelve
+  tipo "sin_causa", categoria "Sin identificar", causa "Sin causa verificada".
+
+Ejemplos de estilo:
+- Documentada: "La telenovela Yesenia (1987) popularizó el nombre en Chile."
+- Probable: "Coincide con la telenovela Yesenia (1987), cercana al alza;
+  no hay una afirmación directa de causalidad."
 
 Devuelve SOLO este JSON:
 {
   "categoria": "una de las categorías",
   "causa": "frase breve",
   "fuente": "URL exacta o cadena vacía",
-  "confianza": "Alta" | "Media" | "Baja" | "Sin verificar"
+  "evidencia": "cita textual o cadena vacía",
+  "tipo": "documentada" | "probable" | "sin_causa",
+  "confianza": "Alta" | "Media" | "Baja"
 }`;
 }
 
@@ -517,9 +855,13 @@ Categorías permitidas:
 ${CATEGORIAS.map((c) => `- ${c}`).join("\n")}
 
 Reglas:
+- "documentada": la fuente afirma explícitamente la relación con el nombre.
+- "probable": la fuente muestra una obra/programa/canción/película/evento
+  con el mismo nombre y cercano al año estimado, sin afirmar causalidad.
 - No inventes una URL. Si no hay fuente que respalde la causa, usa
-  categoria "Sin identificar", causa "Sin causa verificada", fuente "".
-- Si sí hay una fuente, "fuente" debe ser su URL EXACTA.
+  tipo "sin_causa", categoria "Sin identificar", causa "Sin causa verificada",
+  fuente "".
+- "evidencia" debe ser una cita textual de la fuente o cadena vacía.
 - La serie anual la genera el backend; no la devuelvas.
 
 Devuelve SOLO este JSON:
@@ -531,7 +873,9 @@ Devuelve SOLO este JSON:
   "veces": 5.2,
   "causa": "frase breve",
   "fuente": "URL exacta o cadena vacía",
-  "confianza": "Estimada"
+  "evidencia": "cita textual o cadena vacía",
+  "tipo": "documentada" | "probable" | "sin_causa",
+  "confianza": "Alta" | "Media" | "Baja"
 }`;
 }
 
@@ -573,6 +917,68 @@ async function consultarModelo(apiKey, system, user, maxTokens = 1400) {
   }
 }
 
+async function generarConsultas(nombre, anio, apiKey) {
+  const prompt = `Nombre: "${nombre}"
+Año del alza: ${anio || "sin dato"}
+País: Chile.
+
+No afirmes ninguna causa todavía. Propón hasta 4 búsquedas concretas que
+podrían encontrar el motivo del alza: telenovela, serie, canción, película,
+programa de TV, personaje, evento, moda, migración o noticia. Incluye el
+nombre entre comillas y, si ayuda, el año. No inventes URLs.
+
+Devuelve SOLO:
+{ "consultas": ["consulta 1", "consulta 2", "..."] }`;
+
+  try {
+    const raw = await consultarModelo(
+      apiKey,
+      "Eres un investigador de nombres chilenos. Propones consultas de búsqueda, no conclusiones. Respondes con JSON válido.",
+      prompt,
+      500
+    );
+    if (!Array.isArray(raw?.consultas)) return [];
+    return raw.consultas
+      .map((c) => String(c || "").trim())
+      .filter((c) => c.length >= 4 && c.length <= 140)
+      .filter((c, i, arr) => arr.indexOf(c) === i)
+      .slice(0, 4);
+  } catch (error) {
+    console.error("Consultas:", error.message);
+    return [];
+  }
+}
+
+function combinarFuentes(actuales, nuevas) {
+  const mapa = new Map();
+  for (const fuente of [...actuales, ...nuevas]) {
+    if (!fuente?.url) continue;
+    const clave = fuente.url + "|" + fuente.titulo;
+    if (!mapa.has(clave)) mapa.set(clave, fuente);
+  }
+  return [...mapa.values()]
+    .sort((a, b) => (b.score || 0) - (a.score || 0))
+    .slice(0, 12);
+}
+
+function completarCausaProbable(resultado, nombre, anio, fuentes) {
+  if (resultado) {
+    return {
+      ...resultado,
+      fuentes: resumenFuentes(fuentes),
+    };
+  }
+
+  const probable = elegirCausaProbable(nombre, anio, fuentes);
+  if (!probable) return resultadoSinCausa(fuentes);
+
+  return {
+    ...probable,
+    categoria_viz: GRUPO[probable.categoria] || "Sin identificar",
+    fuentes: resumenFuentes(fuentes),
+  };
+}
+
 async function manejarCausa(body, env, origin) {
   const nombre = String(body?.nombre || "").trim();
   const anio = Number(body?.anio);
@@ -602,15 +1008,39 @@ async function manejarCausa(body, env, origin) {
     fuentes = [];
   }
 
+  // Si no apareció una obra/programa claro, pedimos al modelo que proponga
+  // búsquedas más específicas y volvemos a buscar. Esto mejora nombres cuyo
+  // motivo no aparece con una búsqueda genérica.
+  if (!fuentes.some((f) => f.tipo)) {
+    const consultas = await generarConsultas(
+      nombre,
+      Number.isFinite(anio) ? anio : null,
+      apiKey
+    );
+    if (consultas.length) {
+      try {
+        const extra = await buscarFuentes(
+          nombre,
+          Number.isFinite(anio) ? anio : null,
+          env,
+          consultas
+        );
+        fuentes = combinarFuentes(fuentes, extra);
+      } catch {
+        // Nos quedamos con las fuentes iniciales.
+      }
+    }
+  }
+
   if (!fuentes.length) {
     return respuestaJson(resultadoSinCausa(), 200, origin);
   }
 
-  let raw;
+  let raw = null;
   try {
     raw = await consultarModelo(
       apiKey,
-      "Eres un investigador riguroso de nombres chilenos. Solo clasificas y citas fuentes entregadas. Nunca inventas hechos ni URLs. Respondes siempre con JSON válido.",
+      "Eres un investigador riguroso de nombres chilenos. Solo clasificas y citas fuentes entregadas. Nunca inventas hechos ni URLs. Distingues entre causa documentada y causa probable. Respondes siempre con JSON válido.",
       promptCausa(
         nombre,
         Number.isFinite(anio) ? anio : "sin dato",
@@ -620,36 +1050,11 @@ async function manejarCausa(body, env, origin) {
     );
   } catch (error) {
     console.error("Causa:", error.message);
-    return respuestaJson(resultadoSinCausa(), 200, origin);
   }
 
-  const categoria = categoriaValida(raw?.categoria);
-  const causa = String(raw?.causa || "").trim().slice(0, 300);
-  const fuente = obtenerFuente(raw?.fuente, fuentes);
-
-  // Sin una fuente real citada y válida no hay causa verificada.
-  if (
-    !categoria ||
-    categoria === "Sin identificar" ||
-    !causa ||
-    pareceSinCausa(causa) ||
-    !fuente
-  ) {
-    return respuestaJson(resultadoSinCausa(), 200, origin);
-  }
-
-  const confianza = ["Alta", "Media", "Baja"].includes(raw?.confianza)
-    ? raw.confianza
-    : "Media";
-
+  const resultado = normalizarResultadoCausa(raw, fuentes, nombre, anio);
   return respuestaJson(
-    {
-      categoria,
-      categoria_viz: GRUPO[categoria] || "Sin identificar",
-      causa,
-      fuente: fuente.url,
-      confianza,
-    },
+    completarCausaProbable(resultado, nombre, anio, fuentes),
     200,
     origin
   );
@@ -681,13 +1086,13 @@ async function manejarBoom(body, env, origin) {
     fuentes = [];
   }
 
-  let raw;
+  let raw = null;
   try {
     raw = await consultarModelo(
       apiKey,
-      "Eres un analista de nombres chilenos. Estimas series plausibles y solo clasificas causas respaldadas por las fuentes entregadas. Nunca inventas URLs. Respondes siempre con JSON válido.",
+      "Eres un analista de nombres chilenos. Estimas series plausibles y solo clasificas causas respaldadas por las fuentes entregadas. Distingues entre causa documentada y probable. Nunca inventas URLs. Respondes siempre con JSON válido.",
       promptBoom(nombre, fuentes),
-      1000
+      1100
     );
   } catch (error) {
     console.error("Boom:", error.message);
@@ -707,31 +1112,48 @@ async function manejarBoom(body, env, origin) {
     );
   }
 
-  const categoria = categoriaValida(raw?.categoria);
-  const causa = String(raw?.causa || "").trim().slice(0, 300);
-  const fuente = obtenerFuente(raw?.fuente, fuentes);
+  if (!fuentes.some((f) => f.tipo)) {
+    const consultas = await generarConsultas(nombre, boom.anio, apiKey);
+    if (consultas.length) {
+      try {
+        const extra = await buscarFuentes(nombre, boom.anio, env, consultas);
+        fuentes = combinarFuentes(fuentes, extra);
+      } catch {
+        // Nos quedamos con las fuentes iniciales.
+      }
+    }
+  }
 
-  if (
-    !categoria ||
-    categoria === "Sin identificar" ||
-    !causa ||
-    pareceSinCausa(causa) ||
-    !fuente
-  ) {
+  const causa = completarCausaProbable(
+    normalizarResultadoCausa(raw, fuentes, nombre, boom.anio),
+    nombre,
+    boom.anio,
+    fuentes
+  );
+
+  if (causa.tipo === "sin_causa") {
     boom.categoria = "Sin identificar";
     boom.categoria_viz = "Sin identificar";
     boom.causa = "Sin causa verificada";
     boom.fuente = "";
+    boom.fuente_titulo = "";
+    boom.evidencia = "";
+    boom.causa_tipo = "sin_causa";
+    boom.causa_ia = false;
   } else {
-    boom.categoria = categoria;
-    boom.categoria_viz = GRUPO[categoria] || "Sin identificar";
-    boom.causa = causa;
-    boom.fuente = fuente.url;
+    boom.categoria = causa.categoria;
+    boom.categoria_viz = causa.categoria_viz;
+    boom.causa = causa.causa;
+    boom.fuente = causa.fuente;
+    boom.fuente_titulo = causa.fuente_titulo;
+    boom.evidencia = causa.evidencia;
+    boom.causa_tipo = causa.tipo;
+    boom.causa_ia = true;
   }
 
+  boom.fuentes = causa.fuentes;
   boom.confianza = "Estimada";
   boom.ia = true;
-  boom.causa_ia = !!boom.fuente;
 
   return respuestaJson(boom, 200, origin);
 }

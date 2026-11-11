@@ -554,9 +554,12 @@ async function cargarShardReal(nombre) {
   return data[clave] || null;
 }
 
-function detectarBoomSerie(serie) {
+const MIN_INSCRIPCIONES_BOOM = 20;
+
+function detectarBoomSerie(serie, minimoInscripciones = 0) {
   let mejor = null;
   for (let i = 3; i < serie.length; i++) {
+    if (serie[i] < minimoInscripciones) continue;
     const previo = (serie[i - 1] + serie[i - 2] + serie[i - 3]) / 3;
     if (previo <= 0) continue;
     const ratio = serie[i] / previo;
@@ -569,7 +572,11 @@ function detectarBoomSerie(serie) {
 
 function boomDesdeSerieReal(nombre, entrada) {
   const serie = entrada.serie;
-  const boom = detectarBoomSerie(serie);
+  const boomSignificativo = detectarBoomSerie(
+    serie,
+    MIN_INSCRIPCIONES_BOOM
+  );
+  const boom = boomSignificativo || detectarBoomSerie(serie);
   if (!boom) return null;
 
   const anio = DATOS.anio_min + boom.i;
@@ -595,6 +602,7 @@ function boomDesdeSerieReal(nombre, entrada) {
     fuente: "",
     serie,
     real: true,
+    significativo: !!boomSignificativo,
     causa_ia: false,
   };
 }
@@ -614,7 +622,7 @@ async function consultarCausaReal(boom) {
       }),
       signal:
         typeof AbortSignal !== "undefined" && AbortSignal.timeout
-          ? AbortSignal.timeout(60000)
+          ? AbortSignal.timeout(90000)
           : undefined,
     });
     if (!respuesta.ok) return;
@@ -641,11 +649,15 @@ async function consultarCausaReal(boom) {
       }
       boom.causa = data.causa;
       boom.causa_ia = true;
-      boom.confianza = data.confianza || "Sugerida";
+      boom.causa_tipo = data.tipo === "documentada" ? "documentada" : "probable";
+      boom.fuente_titulo = data.fuente_titulo || "";
+      boom.evidencia = data.evidencia || "";
+      boom.confianza = data.confianza || "Media";
       boom.fuente = data.fuente;
     } else {
       boom.causa = "Sin causa verificada";
       boom.causa_ia = false;
+      boom.causa_tipo = "sin_causa";
     }
   } catch (error) {
     // Sin causa verificada: el dato real se muestra igual.
@@ -861,7 +873,20 @@ async function manejarNombreVoz(nombreCrudo) {
         return;
       }
 
-      // 3. Alza menor a 4x: detalle real, sin punto en el beeswarm.
+      // 3. Alza con muy pocas inscripciones: no es un boom significativo.
+      if (!boom.significativo) {
+        boom.aviso =
+          `No entra al beeswarm: el alza de ${boom.veces.toFixed(1)}x en ` +
+          `${boom.anio} ocurre con ${boom.n} inscripciones, por debajo del ` +
+          `mínimo de ${MIN_INSCRIPCIONES_BOOM}. Abajo se muestran sus datos reales.`;
+        estadoVoz(
+          `Dato real: ${boom.nombre}. Tiene un alza, pero con muy pocas inscripciones; no entra al beeswarm.`
+        );
+        mostrarDetalleRealSinPunto(boom);
+        return;
+      }
+
+      // 4. Alza menor a 4x: detalle real, sin punto en el beeswarm.
       if (boom.veces < 4) {
         boom.aviso =
           `Este nombre no entra al beeswarm: su alza máxima es ${boom.veces.toFixed(
@@ -876,19 +901,23 @@ async function manejarNombreVoz(nombreCrudo) {
         return;
       }
 
-      // 4. Alza real: buscar causa con fuentes reales.
+      // 5. Alza real y significativa: buscar causa con fuentes reales.
       estadoVoz(`Datos reales encontrados. Buscando la causa en fuentes…`);
       await consultarCausaReal(boom);
       agregarBoomReal(boom);
       estadoVoz(
         boom.causa_ia
-          ? `Dato real agregado: ${boom.nombre} (${boom.anio}) · causa sugerida por IA.`
+          ? `Dato real agregado: ${boom.nombre} (${boom.anio}) · ${
+              boom.causa_tipo === "documentada"
+                ? "causa documentada"
+                : "causa probable"
+            }.`
           : `Dato real agregado: ${boom.nombre} (${boom.anio}) · sin causa verificada.`
       );
       return;
     }
 
-    // 5. Sin datos reales: estimación IA hasta 2025, marcada.
+    // 6. Sin datos reales: estimación IA hasta 2025, marcada.
     const api = window.API_BOOM_URL;
     if (!api || api.includes("TU-WORKER")) {
       estadoVoz("Falta configurar la URL del Worker en api-config.js.");
@@ -924,9 +953,15 @@ async function manejarNombreVoz(nombreCrudo) {
       data.categoria_viz = "Sin identificar";
       data.causa = "Sin causa verificada";
       data.causa_ia = false;
+      data.causa_tipo = "sin_causa";
       data.fuente = "";
+      data.fuente_titulo = "";
+      data.evidencia = "";
     } else {
       data.causa_ia = true;
+      data.causa_tipo =
+        data.causa_tipo ||
+        (data.tipo === "documentada" ? "documentada" : "probable");
     }
 
     agregarBoomIA(data);
@@ -995,6 +1030,15 @@ function ocultarTooltipSwarm() {
   if (tip) tip.hidden = true;
 }
 
+function escaparHtml(texto) {
+  return String(texto || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function llenarDetalleSwarm(b) {
   const grupo =
     b.categoria_viz && ORDEN_SWARM.includes(b.categoria_viz)
@@ -1014,17 +1058,22 @@ function llenarDetalleSwarm(b) {
   const causaTexto = String(b.causa || "")
     .trim()
     .replace(/\.+$/, "");
+  const tipoCausa =
+    b.causa_tipo || (b.causa_ia ? "probable" : "sin_causa");
+  const etiquetaCausa =
+    tipoCausa === "documentada" ? "Causa documentada" : "Causa probable";
+
   if (b.causa_ia) {
-    causaEl.textContent = `Causa sugerida por IA (verificar fuente): ${causaTexto}.`;
+    causaEl.textContent = `${etiquetaCausa} (fuente real): ${causaTexto}.`;
   } else if (b.real) {
     causaEl.textContent =
       causaTexto && causaTexto !== "Sin causa verificada"
-        ? `Causa: ${causaTexto}.`
-        : "Sin causa verificada.";
+        ? `${etiquetaCausa}: ${causaTexto}.`
+        : "Sin causa verificada. No se encontró una fuente que relacione el alza con un hecho concreto.";
   } else if (b.ia) {
     causaEl.textContent =
       causaTexto && causaTexto !== "Sin causa verificada"
-        ? `Estimación IA: ${causaTexto}.`
+        ? `Estimación IA · ${etiquetaCausa.toLowerCase()}: ${causaTexto}.`
         : "Sin causa verificada (serie estimada por IA).";
   } else {
     causaEl.textContent = causaTexto
@@ -1037,8 +1086,11 @@ function llenarDetalleSwarm(b) {
     b.fuente && /^https?:\/\//i.test(b.fuente)
       ? String(b.fuente).replace(/"/g, "%22").replace(/</g, "%3C")
       : "";
+  const tituloFuente = b.fuente_titulo
+    ? escaparHtml(String(b.fuente_titulo).slice(0, 120))
+    : "fuente";
   const fuenteHtml = fuenteSegura
-    ? ` · <a href="${fuenteSegura}" target="_blank" rel="noopener">fuente</a>`
+    ? ` · Fuente: <a href="${fuenteSegura}" target="_blank" rel="noopener">${tituloFuente}</a>`
     : "";
   const datosHtml = !b.ia
     ? ` · Datos: <a href="https://github.com/rivaquiroga/guaguas" target="_blank" rel="noopener">Registro Civil</a>`

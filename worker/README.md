@@ -5,7 +5,12 @@ conoce la URL del Worker. Hace dos cosas:
 
 1. **Causas reales**: busca en Tavily (opcional), Wikipedia en español y Google
    News RSS, y le pide a DeepSeek que clasifique y cite **solo** esas fuentes.
-2. **Estimaciones IA**: para nombres sin datos reales suficientes, estima un
+   Hace varias consultas por nombre y, si no aparece una obra clara, genera
+   consultas más específicas y vuelve a buscar.
+2. **Causas probables**: si existe una telenovela, serie, película, canción o
+   programa con el mismo nombre y cercano al año del alza, se muestra como
+   `tipo: "probable"` aunque la fuente no afirme causalidad directa.
+3. **Estimaciones IA**: para nombres sin datos reales suficientes, estima un
    boom 1920-2025. La serie se marca como `ia: true`.
 
 Si no hay una fuente real que respalde una causa, responde
@@ -66,7 +71,11 @@ Respuesta con causa verificada:
   "categoria_viz": "Teleseries",
   "causa": "La telenovela Yesenia popularizó el nombre.",
   "fuente": "https://es.wikipedia.org/wiki/Yesenia_(telenovela_de_1987)",
-  "confianza": "Media"
+  "fuente_titulo": "Yesenia (telenovela de 1987)",
+  "evidencia": "La telenovela popularizó el nombre Yesenia.",
+  "tipo": "documentada",
+  "confianza": "Media",
+  "fuentes": ["..."]
 }
 ```
 
