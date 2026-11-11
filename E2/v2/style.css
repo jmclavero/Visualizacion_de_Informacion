@@ -693,12 +693,14 @@ body.intro-activa {
 .swarm-conexion {
   position: absolute;
   top: clamp(12px, 3vh, 24px);
-  left: clamp(12px, 3vw, 24px);
+  right: clamp(12px, 3vw, 24px);
+  left: auto;
   z-index: 7;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: flex-end;
   gap: 8px;
+  text-align: right;
 }
 
 #conectar-dispositivos {
@@ -719,7 +721,7 @@ body.intro-activa {
 }
 
 .voz-estado {
-  max-width: 260px;
+  max-width: 280px;
   padding: 7px 12px;
   border-radius: 10px;
   background: rgba(252, 252, 251, 0.96);
@@ -727,6 +729,7 @@ body.intro-activa {
   color: var(--text-secondary);
   font-size: 0.82rem;
   line-height: 1.4;
+  text-align: left;
   box-shadow: 0 4px 14px rgba(11, 11, 11, 0.1);
 }
 
@@ -734,24 +737,18 @@ body.intro-activa {
   display: none;
 }
 
-/* El botón "Volver" baja para no chocar con "Conectar". */
-.slide-atras,
-.swarm-volver {
-  top: calc(clamp(12px, 3vh, 24px) + 104px) !important;
-}
-
-/* Menú y QR de Protobject arriba a la izquierda. */
+/* Menú y QR de Protobject arriba a la derecha, junto a "Conectar". */
 #ProtobjectPlusButton + .dropdown-menu,
 .dropdown-menu {
   top: 76px !important;
-  left: 16px !important;
-  right: auto !important;
+  right: 16px !important;
+  left: auto !important;
 }
 
 .qr-code-container {
   top: 86px !important;
-  left: 16px !important;
-  right: auto !important;
+  right: 16px !important;
+  left: auto !important;
 }
 
 .ia-badge {

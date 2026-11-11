@@ -1,9 +1,8 @@
-// config.js — dispositivos del prototipo.
-// Solo Visualización (PC), Botón y Micrófono (un celular cada uno).
+// config.js — dispositivos de E2/v2.
+// Un solo celular con botón y micrófono.
 if (typeof Protobject !== "undefined") {
   Protobject.initialize([
     { name: "Visualización", page: "index.html", main: true },
-    { name: "Botón", page: "button.html" },
-    { name: "Micrófono", page: "microphone.html" },
+    { name: "Voz", page: "voice.html" },
   ]);
 }

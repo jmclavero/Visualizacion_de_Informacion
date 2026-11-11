@@ -508,8 +508,6 @@ function actualizarCursorDetalle(indice) {
 
 // ---------- Voz, DeepSeek y nombres nuevos ----------
 
-let timerVoz = null;
-
 function estadoVoz(texto, visible = true) {
   const el = document.getElementById("voz-estado");
   if (!el) return;
@@ -544,24 +542,9 @@ function buscarBoomReal(nombre) {
   );
 }
 
-function iniciarEscuchaVoz() {
-  if (vozOcupada) return;
-  estadoVoz("Botón presionado. Pidiendo el nombre al micrófono…");
-  enviarProtobject({ tipo: "hablar" }, "microphone.html");
-  clearTimeout(timerVoz);
-  timerVoz = setTimeout(() => {
-    if (!vozOcupada) {
-      estadoVoz("No llegó el nombre. Revisa que el micrófono esté conectado.");
-    }
-  }, 9000);
-}
-
 function actualizarEstadoVoz(estado, texto) {
-  if (estado === "escuchando" || estado === "listo" || estado === "error") {
-    clearTimeout(timerVoz);
-  }
   if (estado === "escuchando") {
-    estadoVoz("Escuchando… di tu nombre.");
+    estadoVoz("Escuchando… di tu nombre en el celular.");
   } else if (estado === "listo") {
     estadoVoz("Procesando el nombre…");
   } else if (estado === "error") {
@@ -659,7 +642,6 @@ function agregarBoomIA(boom) {
 
 async function manejarNombreVoz(nombreCrudo) {
   if (vozOcupada) return;
-  clearTimeout(timerVoz);
 
   const nombre = limpiarNombreVoz(nombreCrudo);
   if (!nombre) {

@@ -3,75 +3,79 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>Micrófono · Protobject</title>
+  <title>Voz · Protobject</title>
   <script src="https://app.protobject.com/framework/p.js"></script>
   <script src="config.js"></script>
   <style>
     :root { color-scheme: light; }
     * { box-sizing: border-box; }
+    html, body { height: 100%; }
     body {
       margin: 0;
       min-height: 100vh;
+      min-height: 100dvh;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 18px;
-      padding: 24px;
+      overflow: hidden;
       background: #f9f9f7;
       color: #0b0b0b;
-      text-align: center;
       font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      text-align: center;
+      overscroll-behavior: none;
     }
-    h1 { margin: 0; font-size: 1.6rem; }
-    .hint { margin: 0; max-width: 42ch; color: #52514e; line-height: 1.45; }
-    #activar {
+    #hablar {
+      flex: 1;
+      width: 100%;
       border: 0;
-      border-radius: 999px;
-      padding: 16px 28px;
-      background: #2a78d6;
+      border-radius: 0;
+      padding: 0;
+      background: #1baf7a;
       color: #fff;
       font: inherit;
-      font-size: 1.05rem;
-      font-weight: 700;
+      font-size: clamp(2rem, 9vw, 4.5rem);
+      font-weight: 800;
+      letter-spacing: 0.04em;
       cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      transition: filter 0.1s ease;
     }
-    #activar:disabled { opacity: 0.5; cursor: default; }
+    #hablar:active { filter: brightness(0.9); }
+    #hablar:disabled { opacity: 0.75; cursor: default; }
+    .panel {
+      padding: 14px 18px 18px;
+      background: #f9f9f7;
+      border-top: 1px solid #e1e0d9;
+    }
     #transcripcion {
-      margin: 0;
-      min-height: 3em;
-      max-width: 40ch;
-      font-size: 1.2rem;
-      color: #0b0b0b;
+      margin: 0 0 6px;
+      min-height: 1.6em;
+      font-size: 1.15rem;
+      font-weight: 600;
     }
     #estado {
       margin: 0;
-      color: #898781;
-      font-size: 0.95rem;
-      min-height: 1.5em;
+      min-height: 1.4em;
+      color: #52514e;
+      font-size: 0.92rem;
     }
   </style>
 </head>
 <body>
-  <h1>Micrófono</h1>
-  <p class="hint">
-    Activa el micrófono una vez en este celular. Después, el botón del otro
-    celular hará que empiece a escuchar el nombre.
-  </p>
-
-  <button id="activar" type="button">ACTIVAR MICRÓFONO</button>
-  <p id="transcripcion"></p>
-  <p id="estado">Esperando el botón…</p>
+  <button id="hablar" type="button">HABLAR</button>
+  <div class="panel">
+    <p id="transcripcion"></p>
+    <p id="estado">Toca HABLAR y di tu nombre.</p>
+  </div>
 
   <script>
     (function () {
-      var estadoEl = document.getElementById("estado");
+      var hablarBtn = document.getElementById("hablar");
       var transcripcionEl = document.getElementById("transcripcion");
-      var activarBtn = document.getElementById("activar");
+      var estadoEl = document.getElementById("estado");
 
       var reconociendo = false;
       var ultimoTexto = "";
-      var activado = false;
       var timerEscucha = null;
 
       function enviar(mensaje) {
@@ -83,7 +87,17 @@
         return String(texto || "")
           .replace(/^(me llamo|mi nombre es|soy|el nombre es)\s+/i, "")
           .replace(/[.,!?¿¡]/g, "")
-          .trim();
+          .trim()
+          .replace(/\s+/g, " ");
+      }
+
+      function terminarConError(texto) {
+        reconociendo = false;
+        clearTimeout(timerEscucha);
+        hablarBtn.disabled = false;
+        hablarBtn.textContent = "HABLAR";
+        estadoEl.textContent = texto;
+        enviar({ tipo: "voz", estado: "error", texto: texto });
       }
 
       function iniciar() {
@@ -96,7 +110,9 @@
         reconociendo = true;
         ultimoTexto = "";
         transcripcionEl.textContent = "";
-        estadoEl.textContent = "Escuchando… di tu nombre.";
+        hablarBtn.disabled = true;
+        hablarBtn.textContent = "ESCUCHANDO…";
+        estadoEl.textContent = "Di tu nombre.";
         enviar({ tipo: "voz", estado: "escuchando" });
 
         try {
@@ -108,9 +124,7 @@
             }
           }, 8000);
         } catch (error) {
-          reconociendo = false;
-          estadoEl.textContent = "No se pudo iniciar el micrófono: " + error.message;
-          enviar({ tipo: "voz", estado: "error", texto: "No se pudo iniciar el micrófono." });
+          terminarConError("No se pudo iniciar el micrófono: " + error.message);
         }
       }
 
@@ -118,7 +132,7 @@
         Protobject.VoiceRecognition.onData(function (transcript) {
           ultimoTexto = transcript || "";
           transcripcionEl.textContent = ultimoTexto;
-          // El componente usa reconocimiento continuo: al recibir el nombre
+          // El componente usa reconocimiento continuo. Al recibir el nombre,
           // lo detenemos para que onFinish envíe el resultado.
           try { Protobject.VoiceRecognition.stop(); } catch (error) {}
         });
@@ -126,32 +140,24 @@
         Protobject.VoiceRecognition.onFinish(function () {
           clearTimeout(timerEscucha);
           reconociendo = false;
+          hablarBtn.disabled = false;
+          hablarBtn.textContent = "HABLAR";
+
           var nombre = limpiarNombre(ultimoTexto);
-          transcripcionEl.textContent = nombre ? "“" + nombre + "”" : "No se entendió.";
-          estadoEl.textContent = nombre ? "Nombre enviado. Esperando el botón…" : "No se entendió. Intenta de nuevo.";
-          enviar({ tipo: "voz", estado: "listo" });
-          if (nombre) {
-            enviar({ tipo: "nombre", nombre: nombre });
-            activado = true;
-            activarBtn.textContent = "VOLVER A ACTIVAR MICRÓFONO";
-          } else {
-            enviar({ tipo: "voz", estado: "error", texto: "No se entendió el nombre." });
+          if (!nombre) {
+            terminarConError("No se entendió el nombre. Intenta de nuevo.");
+            return;
           }
+
+          transcripcionEl.textContent = "“" + nombre + "”";
+          estadoEl.textContent = "Nombre enviado. Esperando el resultado…";
+          enviar({ tipo: "voz", estado: "listo" });
+          enviar({ tipo: "nombre", nombre: nombre });
         });
 
-        if (typeof Protobject !== "undefined" && Protobject.Core) {
-          Protobject.Core.onReceived(function (mensaje) {
-            if (mensaje && mensaje.tipo === "hablar") {
-              iniciar();
-            }
-          });
-        }
-
-        activarBtn.addEventListener("click", function () {
-          iniciar();
-        });
+        hablarBtn.addEventListener("click", iniciar);
       } else {
-        activarBtn.disabled = true;
+        hablarBtn.disabled = true;
         estadoEl.textContent = "Este navegador no soporta reconocimiento de voz.";
       }
     })();
