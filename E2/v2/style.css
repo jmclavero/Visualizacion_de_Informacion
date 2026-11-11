@@ -594,6 +594,20 @@ body.intro-activa {
   color: var(--text-secondary);
 }
 
+.swarm-detalle .detalle-aviso {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-left: 3px solid #c98a18;
+  background: #fff6df;
+  color: #6b4a00;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.swarm-detalle .detalle-aviso[hidden] {
+  display: none;
+}
+
 #swarm-grafico-detalle {
   flex: 1;
   min-height: 320px;

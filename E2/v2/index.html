@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>La influencia de la televisión en los nombres de los chilenos</title>
-<link rel="stylesheet" href="style.css?v=20261111a" />
+<link rel="stylesheet" href="style.css?v=20261111b" />
 <script src="https://app.protobject.com/framework/p.js"></script>
 <script src="config.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
@@ -73,9 +73,10 @@
     <div class="swarm-contenido">
       <h2 class="swarm-titulo">Alzas categorizadas y su impacto</h2>
       <p class="swarm-subtitulo">
-        Cada punto es una de las 203 alzas significativas detectadas entre 1920
-        y 2021, según cuánto se disparó (veces sobre el promedio de los 3 años
-        previos) y su causa.
+        Cada punto es un alza significativa detectada entre 1920 y 2021, según
+        cuánto se disparó (veces sobre el promedio de los 3 años previos) y su
+        causa. Los nombres agregados por voz usan datos reales del Registro
+        Civil; los marcados <strong>IA</strong> son estimaciones.
       </p>
       <p class="swarm-leyenda-ayuda">
         <strong>Cómo usarlo:</strong> activa una o más categorías con los
@@ -100,6 +101,7 @@
       <div id="swarm-grafico-detalle"></div>
       <p id="swarm-detalle-causa"></p>
       <p id="swarm-detalle-meta"></p>
+      <p id="swarm-detalle-aviso" class="detalle-aviso" hidden></p>
       <span id="swarm-detalle-ia" class="ia-badge" hidden>IA · estimado</span>
       <span id="swarm-detalle-chip" style="display: none"></span>
     </div>
@@ -118,8 +120,8 @@
   </button>
 </div>
 
-<script defer src="api-config.js?v=20261111a"></script>
-<script defer src="main.js?v=20261111a"></script>
-<script defer src="protobject.js?v=20261111a"></script>
+<script defer src="api-config.js?v=20261111b"></script>
+<script defer src="main.js?v=20261111b"></script>
+<script defer src="protobject.js?v=20261111b"></script>
 </body>
 </html>

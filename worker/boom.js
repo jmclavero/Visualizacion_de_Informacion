@@ -56,18 +56,6 @@ function hashNombre(nombre) {
   return h >>> 0;
 }
 
-function normalizarSerie(valor) {
-  if (!Array.isArray(valor)) return null;
-  const serie = valor.map((v) => {
-    const n = Math.round(Number(v));
-    return Number.isFinite(n) && n > 0 ? n : 0;
-  });
-  if (serie.length < N_ANIOS) {
-    return serie.concat(Array(N_ANIOS - serie.length).fill(0));
-  }
-  return serie.slice(0, N_ANIOS);
-}
-
 /**
  * Genera una serie anual plausible cuando el modelo no entrega una serie
  * utilizable. El año y la magnitud los decide el modelo.
@@ -136,29 +124,25 @@ function detectarBoom(serie) {
 
 /**
  * Convierte la respuesta del modelo en el boom que usa la visualización.
- * Si el modelo trae una serie con un alza clara, se usa. Si no, se genera
- * una serie a partir de anio_boom y veces.
+ * El modelo solo decide el año y la magnitud; la serie anual SIEMPRE se
+ * genera en el Worker. Así no confiamos en 106 cifras inventadas por el
+ * modelo ni las presentamos como si fueran datos reales.
  */
 export function construirBoom(nombre, raw) {
   if (!raw) return null;
 
-  let serie = normalizarSerie(raw.serie);
-  let boom = serie ? detectarBoom(serie) : null;
+  const anioModelo = Number(raw.anio_boom);
+  const anioBoom = Number.isFinite(anioModelo)
+    ? Math.max(1930, Math.min(ANIO_MAX, Math.round(anioModelo)))
+    : 1980;
+  const vecesModelo = Number(raw.veces);
+  const vecesObjetivo = Number.isFinite(vecesModelo)
+    ? Math.max(2, Math.min(30, vecesModelo))
+    : 8;
 
-  // Si la serie viene vacía, plana o sin alza, generamos una plausible.
-  if (!serie || !boom || boom.ratio < 1.2) {
-    const anioModelo = Number(raw.anio_boom);
-    const anioBoom = Number.isFinite(anioModelo)
-      ? Math.max(1930, Math.min(ANIO_MAX, Math.round(anioModelo)))
-      : 1980;
-    const vecesModelo = Number(raw.veces);
-    const veces = Number.isFinite(vecesModelo)
-      ? Math.max(2, Math.min(30, vecesModelo))
-      : 8;
-
-    serie = generarSerie(anioBoom, veces, nombre);
-    boom = detectarBoom(serie);
-  }
+  const serie = generarSerie(anioBoom, vecesObjetivo, nombre);
+  const boom = detectarBoom(serie);
+  if (!boom) return null;
 
   const anio = ANIO_MIN + boom.i;
   const n = serie[boom.i];

@@ -17,15 +17,9 @@ fetch("data/nombres.json")
   .then((datos) => {
     DATOS = datos;
 
-    // La visualización llega hasta 2025. Los booms históricos terminan en
-    // 2021, así que completamos con ceros los años que faltan.
-    const largo = 2025 - DATOS.anio_min + 1;
-    DATOS.booms.forEach((b) => {
-      if (b.serie.length > largo) b.serie = b.serie.slice(0, largo);
-      while (b.serie.length < largo) b.serie.push(0);
-    });
-    DATOS.anio_max = 2025;
-
+    // Los datos reales terminan en 2021. No rellenamos con ceros: cada boom
+    // conserva el largo real de su serie. Las estimaciones IA pueden llegar
+    // hasta 2025 y se marcan como tales.
     IDENTIFICADOS = DATOS.booms.filter((b) => b.categoria_viz !== "Sin identificar");
     rellenarBebes();
     animarBebes(); // la slide de bebés es la primera: se colorean al cargar
@@ -35,8 +29,8 @@ fetch("data/nombres.json")
 // ---------- Gráfico de detalle (serie anual del alza) ----------
 
 function dibujarDetalle(b, contenedorId, color) {
-  const anios = [];
-  for (let a = DATOS.anio_min; a <= DATOS.anio_max; a++) anios.push(a);
+  const anioFin = DATOS.anio_min + b.serie.length - 1;
+  const anios = b.serie.map((_, i) => DATOS.anio_min + i);
 
   const traza = {
     x: anios,
@@ -53,7 +47,7 @@ function dibujarDetalle(b, contenedorId, color) {
     margin: { t: 18, r: 20, b: 36, l: 56 },
     paper_bgcolor: "transparent",
     plot_bgcolor: "transparent",
-    xaxis: { range: [DATOS.anio_min - 2, DATOS.anio_max + 2], gridcolor: "#e1e0d9", fixedrange: true },
+    xaxis: { range: [DATOS.anio_min - 2, anioFin + 2], gridcolor: "#e1e0d9", fixedrange: true },
     yaxis: { title: "Inscripciones", rangemode: "tozero", gridcolor: "#e1e0d9", fixedrange: true },
     dragmode: false,
     showlegend: false,
@@ -452,7 +446,8 @@ function actualizarCursorDetalle(indice) {
           valor === 1 ? "inscripción" : "inscripciones"
         }`;
 
-  const mitad = (DATOS.anio_min + DATOS.anio_max) / 2;
+  const anioFin = DATOS.anio_min + b.serie.length - 1;
+  const mitad = (DATOS.anio_min + anioFin) / 2;
   const aLaIzquierda = anio < mitad;
 
   const shapes = [
@@ -542,6 +537,199 @@ function buscarBoomReal(nombre) {
   );
 }
 
+const cacheShards = new Map();
+
+async function cargarShardReal(nombre) {
+  const clave = normalizarNombre(nombre);
+  if (!clave) return null;
+  const letra = /^[a-z]/.test(clave) ? clave[0] : "_";
+
+  let data = cacheShards.get(letra);
+  if (!data) {
+    const respuesta = await fetch(`data/guaguas/${letra}.json`);
+    if (!respuesta.ok) return null;
+    data = await respuesta.json();
+    cacheShards.set(letra, data);
+  }
+  return data[clave] || null;
+}
+
+function detectarBoomSerie(serie) {
+  let mejor = null;
+  for (let i = 3; i < serie.length; i++) {
+    const previo = (serie[i - 1] + serie[i - 2] + serie[i - 3]) / 3;
+    if (previo <= 0) continue;
+    const ratio = serie[i] / previo;
+    if (!mejor || ratio > mejor.ratio) {
+      mejor = { i, ratio, previo };
+    }
+  }
+  return mejor;
+}
+
+function boomDesdeSerieReal(nombre, entrada) {
+  const serie = entrada.serie;
+  const boom = detectarBoomSerie(serie);
+  if (!boom) return null;
+
+  const anio = DATOS.anio_min + boom.i;
+  const n = serie[boom.i];
+  const prev = Math.round(boom.previo);
+  // Usamos el promedio sin redondear para no convertir un 0,3 en 0 y perder
+  // el alza (los datos reales pueden tener años con muy pocas inscripciones).
+  const veces =
+    boom.previo > 0 ? Math.round((n / boom.previo) * 10) / 10 : 0;
+
+  return {
+    nombre: entrada.nombre || nombre,
+    sexo: "Sin dato",
+    anio,
+    prev,
+    n,
+    extra: n - prev,
+    veces,
+    categoria: "Sin identificar",
+    categoria_viz: "Sin identificar",
+    causa: "Sin causa verificada",
+    confianza: "Real",
+    fuente: "",
+    serie,
+    real: true,
+    causa_ia: false,
+  };
+}
+
+async function consultarCausaReal(boom) {
+  const api = window.API_CAUSA_URL;
+  if (!api || api.includes("TU-WORKER")) return;
+
+  try {
+    const respuesta = await fetch(api, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        nombre: boom.nombre,
+        anio: boom.anio,
+        veces: boom.veces,
+      }),
+      signal:
+        typeof AbortSignal !== "undefined" && AbortSignal.timeout
+          ? AbortSignal.timeout(60000)
+          : undefined,
+    });
+    if (!respuesta.ok) return;
+    const data = await respuesta.json();
+
+    // Solo aceptamos una causa si trae una URL real y no es una estimación
+    // del endpoint /api/boom (por ejemplo, si el Worker aún no se actualizó).
+    const fuenteValida =
+      !data.ia &&
+      typeof data.fuente === "string" &&
+      /^https?:\/\//i.test(data.fuente);
+    const causaValida =
+      fuenteValida &&
+      data.causa &&
+      data.causa !== "Sin causa verificada";
+
+    if (causaValida) {
+      if (data.categoria && GRUPO_SWARM[data.categoria]) {
+        boom.categoria = data.categoria;
+        boom.categoria_viz =
+          data.categoria_viz && ORDEN_SWARM.includes(data.categoria_viz)
+            ? data.categoria_viz
+            : GRUPO_SWARM[data.categoria];
+      }
+      boom.causa = data.causa;
+      boom.causa_ia = true;
+      boom.confianza = data.confianza || "Sugerida";
+      boom.fuente = data.fuente;
+    } else {
+      boom.causa = "Sin causa verificada";
+      boom.causa_ia = false;
+    }
+  } catch (error) {
+    // Sin causa verificada: el dato real se muestra igual.
+  }
+}
+
+function agregarBoomReal(boom) {
+  if (!nodosSwarm || !centroXSwarm || !escalaYSwarm) {
+    estadoVoz("El beeswarm todavía no está listo.");
+    return;
+  }
+
+  let grupo =
+    boom.categoria_viz && ORDEN_SWARM.includes(boom.categoria_viz)
+      ? boom.categoria_viz
+      : GRUPO_SWARM[boom.categoria] || "Sin identificar";
+  if (!ORDEN_SWARM.includes(grupo)) grupo = "Sin identificar";
+  boom.categoria_viz = grupo;
+
+  const existente = nodosSwarm.find(
+    (n) =>
+      n.real &&
+      n.boom &&
+      normalizarNombre(n.boom.nombre) === normalizarNombre(boom.nombre)
+  );
+  if (existente) {
+    const circle = document.querySelector(
+      `#grafico-swarm circle[data-id="${existente.id}"]`
+    );
+    if (circle) seleccionarNodoSwarm(existente, circle);
+    estadoVoz(`Ese nombre ya está en el beeswarm: ${boom.nombre}.`);
+    return;
+  }
+
+  const id = "real-" + Date.now() + Math.round(Math.random() * 1000);
+  const total = nodosSwarm.filter((n) => n.grupo === grupo).length;
+  const offset = (total % 2 ? 1 : -1) * (7 + (total % 5) * 3);
+  const x = Math.max(
+    60,
+    Math.min(ANCHO_SWARM - 30, centroXSwarm(grupo) + offset)
+  );
+  const vecesY = Math.max(3, Math.min(300, boom.veces));
+  const y = escalaYSwarm(vecesY);
+
+  const nodo = { id, boom, grupo, veces: boom.veces, x, y, ia: false, real: true };
+  nodosSwarm.push(nodo);
+  DATOS.booms.push(boom);
+
+  gruposActivos.add(grupo);
+  ultimaCategoriaActivada = grupo;
+  actualizarLeyendaSwarm();
+  actualizarPuntosSwarm();
+
+  setTimeout(() => {
+    const circle = document.querySelector(
+      `#grafico-swarm circle[data-id="${id}"]`
+    );
+    if (circle) {
+      seleccionarNodoSwarm(nodo, circle);
+    } else {
+      estadoVoz("El dato real se agregó, pero no se pudo abrir su detalle.");
+    }
+  }, 80);
+}
+
+function mostrarDetalleRealSinPunto(boom) {
+  // Si había otro punto ampliado, volvemos al beeswarm completo.
+  volverSwarm();
+
+  nodoActivo = null;
+  detalleActual = boom;
+  indiceCursorDetalle = Math.max(
+    0,
+    Math.min(boom.serie.length - 1, boom.anio - DATOS.anio_min)
+  );
+
+  const volver = document.getElementById("swarm-volver");
+  if (volver) volver.hidden = false;
+  const atras = document.getElementById("swarm-atras");
+  if (atras) atras.hidden = true;
+
+  mostrarPanelSwarm(boom);
+}
+
 function actualizarEstadoVoz(estado, texto) {
   if (estado === "escuchando") {
     estadoVoz("Escuchando… di tu nombre en el celular.");
@@ -594,7 +782,9 @@ function agregarBoomIA(boom) {
     return;
   }
 
-  const largo = DATOS.anio_max - DATOS.anio_min + 1;
+  // Las estimaciones IA pueden llegar hasta 2025, aunque los datos reales
+  // terminen en 2021.
+  const largo = 2025 - DATOS.anio_min + 1;
   if (boom.serie.length > largo) boom.serie = boom.serie.slice(0, largo);
   while (boom.serie.length < largo) boom.serie.push(0);
 
@@ -649,30 +839,70 @@ async function manejarNombreVoz(nombreCrudo) {
     return;
   }
 
-  const real = buscarBoomReal(nombre);
-  if (real) {
-    estadoVoz(`Nombre real encontrado: ${real.nombre} (${real.anio}).`);
-    seleccionarBoomReal(real);
-    return;
-  }
-
-  const api = window.API_BOOM_URL;
-  if (!api || api.includes("TU-WORKER")) {
-    estadoVoz("Falta configurar la URL del Worker en api-config.js.");
+  // 1. Booms ya curados con datos y causa reales.
+  const curado = buscarBoomReal(nombre);
+  if (curado) {
+    estadoVoz(`Dato real curado: ${curado.nombre} (${curado.anio}).`);
+    seleccionarBoomReal(curado);
     return;
   }
 
   vozOcupada = true;
-  estadoVoz(`Consultando DeepSeek para “${nombre}”…`);
+  estadoVoz(`Buscando “${nombre}” en el Registro Civil…`);
 
   try {
+    // 2. Datos reales completos 1920-2021.
+    const entrada = await cargarShardReal(nombre);
+
+    if (entrada) {
+      const boom = boomDesdeSerieReal(nombre, entrada);
+      if (!boom) {
+        estadoVoz("Hay datos reales, pero no se pudo calcular una serie.");
+        return;
+      }
+
+      // 3. Alza menor a 4x: detalle real, sin punto en el beeswarm.
+      if (boom.veces < 4) {
+        boom.aviso =
+          `Este nombre no entra al beeswarm: su alza máxima es ${boom.veces.toFixed(
+            1
+          )}x, menor al umbral de 4x. Abajo se muestran sus datos reales.`;
+        estadoVoz(
+          `Dato real: ${boom.nombre}. No entra al beeswarm: su alza máxima es ${boom.veces.toFixed(
+            1
+          )}x, menor a 4x.`
+        );
+        mostrarDetalleRealSinPunto(boom);
+        return;
+      }
+
+      // 4. Alza real: buscar causa con fuentes reales.
+      estadoVoz(`Datos reales encontrados. Buscando la causa en fuentes…`);
+      await consultarCausaReal(boom);
+      agregarBoomReal(boom);
+      estadoVoz(
+        boom.causa_ia
+          ? `Dato real agregado: ${boom.nombre} (${boom.anio}) · causa sugerida por IA.`
+          : `Dato real agregado: ${boom.nombre} (${boom.anio}) · sin causa verificada.`
+      );
+      return;
+    }
+
+    // 5. Sin datos reales: estimación IA hasta 2025, marcada.
+    const api = window.API_BOOM_URL;
+    if (!api || api.includes("TU-WORKER")) {
+      estadoVoz("Falta configurar la URL del Worker en api-config.js.");
+      return;
+    }
+
+    estadoVoz(`Sin datos reales. Generando una estimación IA para “${nombre}”…`);
     const respuesta = await fetch(api, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ nombre }),
       signal:
         typeof AbortSignal !== "undefined" && AbortSignal.timeout
-          ? AbortSignal.timeout(45000)
+          ? AbortSignal.timeout(60000)
           : undefined,
     });
 
@@ -681,12 +911,26 @@ async function manejarNombreVoz(nombreCrudo) {
       throw new Error(data.error || "Error al consultar DeepSeek.");
     }
 
+    // Una estimación solo puede mostrar causa/categoría si trae una fuente
+    // real. Esto también protege si el Worker desplegado aún es el antiguo.
+    const fuenteIa =
+      typeof data.fuente === "string" && /^https?:\/\//i.test(data.fuente);
+    if (!fuenteIa) {
+      data.categoria = "Sin identificar";
+      data.categoria_viz = "Sin identificar";
+      data.causa = "Sin causa verificada";
+      data.causa_ia = false;
+      data.fuente = "";
+    } else {
+      data.causa_ia = true;
+    }
+
     agregarBoomIA(data);
     estadoVoz(
-      `Nombre agregado: ${data.nombre} · ${data.categoria} · estimado con IA.`
+      `Estimación IA agregada: ${data.nombre} · ${data.categoria} · sin datos reales.`
     );
   } catch (error) {
-    estadoVoz("No se pudo generar el nombre: " + error.message);
+    estadoVoz("No se pudo procesar el nombre: " + error.message);
   } finally {
     vozOcupada = false;
   }
@@ -763,21 +1007,50 @@ function llenarDetalleSwarm(b) {
   }
 
   const causaEl = document.getElementById("swarm-detalle-causa");
-  causaEl.textContent = b.causa
-    ? `Coincide con: ${b.causa}.`
-    : "Sin causa identificada.";
+  const causaTexto = String(b.causa || "")
+    .trim()
+    .replace(/\.+$/, "");
+  if (b.causa_ia) {
+    causaEl.textContent = `Causa sugerida por IA (verificar fuente): ${causaTexto}.`;
+  } else if (b.real) {
+    causaEl.textContent =
+      causaTexto && causaTexto !== "Sin causa verificada"
+        ? `Causa: ${causaTexto}.`
+        : "Sin causa verificada.";
+  } else if (b.ia) {
+    causaEl.textContent =
+      causaTexto && causaTexto !== "Sin causa verificada"
+        ? `Estimación IA: ${causaTexto}.`
+        : "Sin causa verificada (serie estimada por IA).";
+  } else {
+    causaEl.textContent = causaTexto
+      ? `Coincide con: ${causaTexto}.`
+      : "Sin causa identificada.";
+  }
 
   const metaEl = document.getElementById("swarm-detalle-meta");
-  const fuenteHtml =
+  const fuenteSegura =
     b.fuente && /^https?:\/\//i.test(b.fuente)
-      ? ` · <a href="${b.fuente}" target="_blank" rel="noopener">fuente</a>`
+      ? String(b.fuente).replace(/"/g, "%22").replace(/</g, "%3C")
       : "";
+  const fuenteHtml = fuenteSegura
+    ? ` · <a href="${fuenteSegura}" target="_blank" rel="noopener">fuente</a>`
+    : "";
+  const datosHtml = !b.ia
+    ? ` · Datos: <a href="https://github.com/rivaquiroga/guaguas" target="_blank" rel="noopener">Registro Civil</a>`
+    : "";
   metaEl.innerHTML =
     `De ${Math.round(b.prev)} a ${b.n} inscripciones (${b.veces.toFixed(1)}x), ` +
-    `+${b.extra} guaguas extra${fuenteHtml}`;
+    `+${b.extra} guaguas extra${fuenteHtml}${datosHtml}`;
 
   const iaEl = document.getElementById("swarm-detalle-ia");
   if (iaEl) iaEl.hidden = !b.ia;
+
+  const avisoEl = document.getElementById("swarm-detalle-aviso");
+  if (avisoEl) {
+    avisoEl.textContent = b.aviso || "";
+    avisoEl.hidden = !b.aviso;
+  }
 
   dibujarDetalle(b, "swarm-grafico-detalle", color);
 }
@@ -808,7 +1081,7 @@ function seleccionarNodoSwarm(d, circle) {
   indiceCursorDetalle = Math.max(
     0,
     Math.min(
-      DATOS.anio_max - DATOS.anio_min,
+      d.boom.serie.length - 1,
       d.boom.anio - DATOS.anio_min
     )
   );
