@@ -5,11 +5,13 @@ conoce la URL del Worker.
 
 ## Desplegarlo gratis
 
+### Opción rápida: panel de Cloudflare
+
 1. Crea una cuenta gratuita en <https://dash.cloudflare.com/>.
 2. Ve a **Workers & Pages → Create → Worker**.
 3. Ponle un nombre, por ejemplo `nombres-boom-api`.
-4. Reemplaza el código de ejemplo por el contenido de `worker/index.js` y
-   `worker/boom.js` (o despliega con Wrangler, ver abajo).
+4. En el editor, borra el código de ejemplo y pega **todo** el contenido de
+   `worker/standalone.js`.
 5. En **Settings → Variables and Secrets**, agrega un **Secret** llamado
    `DEEPSEEK_API_KEY` con tu API key de DeepSeek. No la pongas en el código.
 6. Deploy. Copia la URL del Worker, por ejemplo:
@@ -19,7 +21,9 @@ conoce la URL del Worker.
    window.API_BOOM_URL = "https://nombres-boom-api.TU-SUBDOMINIO.workers.dev/api/boom";
    ```
 
-## Con Wrangler (alternativa)
+### Opción con Wrangler
+
+Usa `worker/index.js` + `worker/boom.js` con `worker/wrangler.toml`:
 
 ```bash
 npm install -g wrangler
