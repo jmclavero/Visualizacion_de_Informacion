@@ -10,10 +10,14 @@ conoce la URL del Worker. Hace dos cosas:
 2. **Causas probables**: si existe una telenovela, serie, película, canción o
    programa con el mismo nombre y cercano al año del alza, se muestra como
    `tipo: "probable"` aunque la fuente no afirme causalidad directa.
-3. **Estimaciones IA**: para nombres sin datos reales suficientes, estima un
-   boom 1920-2025. La serie se marca como `ia: true`.
+3. **Categoría estimada IA**: si no hay una causa verificada, estima una
+   categoría y una causa probable con el nombre y el año, sin inventar
+   fuentes. Se devuelve con `tipo: "estimada_ia"`.
+4. **Estimaciones IA**: para nombres sin datos reales suficientes, estima un
+   boom 1920-2025. La serie se marca como `ia: true` y usa varias formas de
+   curva (pico, ola, sostenida, evento) para no repetir el mismo gráfico.
 
-Si no hay una fuente real que respalde una causa, responde
+Si no hay ninguna referencia plausible, responde
 `"Sin causa verificada"` y `"Sin identificar"`. Nunca inventa URLs.
 
 ## Desplegarlo gratis
@@ -88,6 +92,25 @@ Sin fuente válida:
   "causa": "Sin causa verificada",
   "fuente": "",
   "confianza": "Sin verificar"
+}
+```
+
+### `POST /api/estimar`
+
+Para nombres reales que no entran al beeswarm (por ejemplo, Michael: su alza
+real es 1,8x). Devuelve una categoría/causa estimada, sin fuente:
+
+```json
+{ "nombre": "Michael", "anio": 1984, "veces": 1.8 }
+```
+
+```json
+{
+  "categoria": "Música / Viña",
+  "causa": "Michael Jackson y Thriller popularizaron el nombre.",
+  "tipo": "estimada_ia",
+  "categoria_estimada_ia": true,
+  "confianza": "Media"
 }
 ```
 

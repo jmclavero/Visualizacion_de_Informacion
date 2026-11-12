@@ -782,6 +782,10 @@ body.intro-activa {
   display: none;
 }
 
+#swarm-detalle-categoria-ia {
+  margin: 2px 0 6px;
+}
+
 .punto-ia {
   stroke: #0b0b0b;
   stroke-width: 2px;

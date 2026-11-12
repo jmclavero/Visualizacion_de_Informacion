@@ -359,6 +359,8 @@ const GRUPO_SWARM = {
   "Deporte": "No televisivas",
   "Ciencia y espacio": "No televisivas",
   "Migración": "No televisivas",
+  "Religión / tradición": "No televisivas",
+  "Moda / tendencia": "No televisivas",
   "Sin identificar": "Sin identificar",
 };
 
@@ -628,8 +630,32 @@ async function consultarCausaReal(boom) {
     if (!respuesta.ok) return;
     const data = await respuesta.json();
 
-    // Solo aceptamos una causa si trae una URL real y no es una estimación
-    // del endpoint /api/boom (por ejemplo, si el Worker aún no se actualizó).
+    // La categoría puede ser una estimación IA aunque no tenga fuente.
+    if (
+      (data.tipo === "estimada_ia" || data.categoria_estimada_ia) &&
+      data.categoria &&
+      data.categoria !== "Sin identificar" &&
+      GRUPO_SWARM[data.categoria]
+    ) {
+      boom.categoria = data.categoria;
+      boom.categoria_viz =
+        data.categoria_viz && ORDEN_SWARM.includes(data.categoria_viz)
+          ? data.categoria_viz
+          : GRUPO_SWARM[data.categoria];
+      boom.categoria_estimada_ia = true;
+      boom.causa =
+        data.causa ||
+        "Categoría estimada por IA a partir del nombre y el año del alza.";
+      boom.causa_ia = true;
+      boom.causa_tipo = "estimada_ia";
+      boom.confianza = data.confianza || "Baja";
+      boom.fuente = "";
+      boom.fuente_titulo = "";
+      boom.evidencia = "";
+      return;
+    }
+
+    // Una causa con fuente real: documentada o probable.
     const fuenteValida =
       !data.ia &&
       typeof data.fuente === "string" &&
@@ -650,6 +676,7 @@ async function consultarCausaReal(boom) {
       boom.causa = data.causa;
       boom.causa_ia = true;
       boom.causa_tipo = data.tipo === "documentada" ? "documentada" : "probable";
+      boom.categoria_estimada_ia = false;
       boom.fuente_titulo = data.fuente_titulo || "";
       boom.evidencia = data.evidencia || "";
       boom.confianza = data.confianza || "Media";
@@ -658,9 +685,62 @@ async function consultarCausaReal(boom) {
       boom.causa = "Sin causa verificada";
       boom.causa_ia = false;
       boom.causa_tipo = "sin_causa";
+      boom.categoria_estimada_ia = false;
     }
   } catch (error) {
     // Sin causa verificada: el dato real se muestra igual.
+  }
+}
+
+async function consultarCategoriaEstimada(boom) {
+  const api = window.API_ESTIMAR_URL;
+  if (!api || api.includes("TU-WORKER")) return;
+
+  try {
+    const respuesta = await fetch(api, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        nombre: boom.nombre,
+        anio: boom.anio,
+        veces: boom.veces,
+      }),
+      signal:
+        typeof AbortSignal !== "undefined" && AbortSignal.timeout
+          ? AbortSignal.timeout(60000)
+          : undefined,
+    });
+    if (!respuesta.ok) return;
+    const data = await respuesta.json();
+
+    const esEstimacion =
+      data.tipo === "estimada_ia" || data.categoria_estimada_ia === true;
+    if (
+      !esEstimacion ||
+      !data.categoria ||
+      data.categoria === "Sin identificar" ||
+      !GRUPO_SWARM[data.categoria]
+    ) {
+      return;
+    }
+
+    boom.categoria = data.categoria;
+    boom.categoria_viz =
+      data.categoria_viz && ORDEN_SWARM.includes(data.categoria_viz)
+        ? data.categoria_viz
+        : GRUPO_SWARM[data.categoria];
+    boom.categoria_estimada_ia = true;
+    boom.causa =
+      data.causa ||
+      "Categoría estimada por IA a partir del nombre y el año del alza.";
+    boom.causa_ia = true;
+    boom.causa_tipo = "estimada_ia";
+    boom.confianza = data.confianza || "Baja";
+    boom.fuente = "";
+    boom.fuente_titulo = "";
+    boom.evidencia = "";
+  } catch {
+    // Si falla la estimación, el nombre queda como Sin identificar.
   }
 }
 
@@ -875,12 +955,18 @@ async function manejarNombreVoz(nombreCrudo) {
 
       // 3. Alza con muy pocas inscripciones: no es un boom significativo.
       if (!boom.significativo) {
+        estadoVoz(
+          `Dato real: ${boom.nombre}. Estimando su categoría con IA…`
+        );
+        await consultarCategoriaEstimada(boom);
         boom.aviso =
           `No entra al beeswarm: el alza de ${boom.veces.toFixed(1)}x en ` +
           `${boom.anio} ocurre con ${boom.n} inscripciones, por debajo del ` +
           `mínimo de ${MIN_INSCRIPCIONES_BOOM}. Abajo se muestran sus datos reales.`;
         estadoVoz(
-          `Dato real: ${boom.nombre}. Tiene un alza, pero con muy pocas inscripciones; no entra al beeswarm.`
+          boom.categoria_estimada_ia
+            ? `Dato real: ${boom.nombre}. Categoría estimada IA: ${boom.categoria_viz}. No entra al beeswarm por pocas inscripciones.`
+            : `Dato real: ${boom.nombre}. No entra al beeswarm por pocas inscripciones.`
         );
         mostrarDetalleRealSinPunto(boom);
         return;
@@ -888,14 +974,20 @@ async function manejarNombreVoz(nombreCrudo) {
 
       // 4. Alza menor a 4x: detalle real, sin punto en el beeswarm.
       if (boom.veces < 4) {
+        estadoVoz(
+          `Dato real: ${boom.nombre}. Estimando su categoría con IA…`
+        );
+        await consultarCategoriaEstimada(boom);
         boom.aviso =
           `Este nombre no entra al beeswarm: su alza máxima es ${boom.veces.toFixed(
             1
           )}x, menor al umbral de 4x. Abajo se muestran sus datos reales.`;
         estadoVoz(
-          `Dato real: ${boom.nombre}. No entra al beeswarm: su alza máxima es ${boom.veces.toFixed(
-            1
-          )}x, menor a 4x.`
+          boom.categoria_estimada_ia
+            ? `Dato real: ${boom.nombre}. Categoría estimada IA: ${boom.categoria_viz}. No entra al beeswarm porque su alza es menor a 4x.`
+            : `Dato real: ${boom.nombre}. No entra al beeswarm: su alza máxima es ${boom.veces.toFixed(
+                1
+              )}x, menor a 4x.`
         );
         mostrarDetalleRealSinPunto(boom);
         return;
@@ -904,13 +996,19 @@ async function manejarNombreVoz(nombreCrudo) {
       // 5. Alza real y significativa: buscar causa con fuentes reales.
       estadoVoz(`Datos reales encontrados. Buscando la causa en fuentes…`);
       await consultarCausaReal(boom);
+      if (!boom.causa_ia) {
+        estadoVoz("Sin fuente para la causa. Estimando la categoría con IA…");
+        await consultarCategoriaEstimada(boom);
+      }
       agregarBoomReal(boom);
       estadoVoz(
         boom.causa_ia
           ? `Dato real agregado: ${boom.nombre} (${boom.anio}) · ${
-              boom.causa_tipo === "documentada"
-                ? "causa documentada"
-                : "causa probable"
+              boom.categoria_estimada_ia
+                ? "categoría y causa estimadas IA"
+                : boom.causa_tipo === "documentada"
+                  ? "causa documentada"
+                  : "causa probable"
             }.`
           : `Dato real agregado: ${boom.nombre} (${boom.anio}) · sin causa verificada.`
       );
@@ -931,7 +1029,7 @@ async function manejarNombreVoz(nombreCrudo) {
       body: JSON.stringify({ nombre }),
       signal:
         typeof AbortSignal !== "undefined" && AbortSignal.timeout
-          ? AbortSignal.timeout(60000)
+          ? AbortSignal.timeout(90000)
           : undefined,
     });
 
@@ -940,20 +1038,37 @@ async function manejarNombreVoz(nombreCrudo) {
       throw new Error(data.error || "Error al consultar DeepSeek.");
     }
 
-    // Una estimación solo puede mostrar causa/categoría si trae una fuente
-    // real. Esto también protege si el Worker desplegado aún es el antiguo.
+    // Puede venir con fuente real o con una categoría estimada por IA.
     const fuenteIa =
       typeof data.fuente === "string" && /^https?:\/\//i.test(data.fuente);
+    const categoriaEstimadaIa =
+      data.categoria_estimada_ia &&
+      data.categoria &&
+      data.categoria !== "Sin identificar" &&
+      GRUPO_SWARM[data.categoria];
     const causaValidaIa =
       fuenteIa &&
       data.causa &&
       data.causa !== "Sin causa verificada";
-    if (!causaValidaIa) {
+
+    if (categoriaEstimadaIa) {
+      data.categoria_estimada_ia = true;
+      data.causa_ia = true;
+      data.causa_tipo = "estimada_ia";
+      if (!data.causa || data.causa === "Sin causa verificada") {
+        data.causa =
+          "Categoría estimada por IA a partir del nombre y el año del alza.";
+      }
+      data.fuente = "";
+      data.fuente_titulo = "";
+      data.evidencia = "";
+    } else if (!causaValidaIa) {
       data.categoria = "Sin identificar";
       data.categoria_viz = "Sin identificar";
       data.causa = "Sin causa verificada";
       data.causa_ia = false;
       data.causa_tipo = "sin_causa";
+      data.categoria_estimada_ia = false;
       data.fuente = "";
       data.fuente_titulo = "";
       data.evidencia = "";
@@ -962,6 +1077,7 @@ async function manejarNombreVoz(nombreCrudo) {
       data.causa_tipo =
         data.causa_tipo ||
         (data.tipo === "documentada" ? "documentada" : "probable");
+      data.categoria_estimada_ia = false;
     }
 
     agregarBoomIA(data);
@@ -1017,10 +1133,13 @@ function mostrarTooltipSwarm(ev, d) {
     d.boom.categoria_viz && ORDEN_SWARM.includes(d.boom.categoria_viz)
       ? d.boom.categoria_viz
       : GRUPO_SWARM[d.boom.categoria] || "Sin identificar";
+  const categoriaIa = d.boom.categoria_estimada_ia
+    ? " · categoría estimada IA"
+    : "";
   tip.innerHTML =
     `<strong>${d.boom.nombre} (${d.boom.anio})</strong><br>` +
     `<span class="punto-color" style="background:${COLOR_SWARM[grupo]}"></span>` +
-    `${grupo} · Alza de ${d.veces.toFixed(1)}x veces`;
+    `${grupo}${categoriaIa} · Alza de ${d.veces.toFixed(1)}x veces`;
   tip.hidden = false;
   posicionarTooltipSwarm(ev);
 }
@@ -1060,21 +1179,28 @@ function llenarDetalleSwarm(b) {
     .replace(/\.+$/, "");
   const tipoCausa =
     b.causa_tipo || (b.causa_ia ? "probable" : "sin_causa");
-  const etiquetaCausa =
-    tipoCausa === "documentada" ? "Causa documentada" : "Causa probable";
+  const categoriaEstimada =
+    !!b.categoria_estimada_ia || tipoCausa === "estimada_ia";
 
-  if (b.causa_ia) {
-    causaEl.textContent = `${etiquetaCausa} (fuente real): ${causaTexto}.`;
+  const categoriaIaEl = document.getElementById(
+    "swarm-detalle-categoria-ia"
+  );
+  if (categoriaIaEl) categoriaIaEl.hidden = !categoriaEstimada;
+
+  if (tipoCausa === "estimada_ia" && causaTexto) {
+    causaEl.textContent = `Causa estimada IA: ${causaTexto}.`;
+  } else if (tipoCausa === "documentada" && causaTexto) {
+    causaEl.textContent = `Causa documentada (fuente real): ${causaTexto}.`;
+  } else if (tipoCausa === "probable" && causaTexto) {
+    causaEl.textContent = `Causa probable (fuente real): ${causaTexto}.`;
+  } else if (categoriaEstimada) {
+    causaEl.textContent =
+      "Categoría estimada IA; no se encontró una causa concreta.";
   } else if (b.real) {
     causaEl.textContent =
-      causaTexto && causaTexto !== "Sin causa verificada"
-        ? `${etiquetaCausa}: ${causaTexto}.`
-        : "Sin causa verificada. No se encontró una fuente que relacione el alza con un hecho concreto.";
+      "Sin causa verificada. No se encontró una fuente que relacione el alza con un hecho concreto.";
   } else if (b.ia) {
-    causaEl.textContent =
-      causaTexto && causaTexto !== "Sin causa verificada"
-        ? `Estimación IA · ${etiquetaCausa.toLowerCase()}: ${causaTexto}.`
-        : "Sin causa verificada (serie estimada por IA).";
+    causaEl.textContent = "Sin causa verificada (serie estimada por IA).";
   } else {
     causaEl.textContent = causaTexto
       ? `Coincide con: ${causaTexto}.`

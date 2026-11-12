@@ -201,7 +201,9 @@ ${bloqueFuentes}
 
 Elige:
 - Un año de boom entre 1930 y 2025.
-- Una magnitud de alza ("veces") entre 2 y 30.
+- Una magnitud de alza ("veces") entre 2 y 12.
+- Una forma de curva: "pico", "ola", "sostenido" o "evento".
+- Una popularidad base: "raro", "poco comun", "comun" o "muy comun".
 - Una categoría de la lista, SOLO si una fuente la respalda.
 - Una causa breve, SOLO si una fuente la respalda.
 - El sexo asociado: "F", "M" o "Sin dato".
@@ -226,6 +228,8 @@ Devuelve SOLO este JSON:
   "categoria": "una de las categorías",
   "anio_boom": 1989,
   "veces": 5.2,
+  "forma": "pico" | "ola" | "sostenido" | "evento",
+  "popularidad": "raro" | "poco comun" | "comun" | "muy comun",
   "causa": "frase breve",
   "fuente": "URL exacta o cadena vacía",
   "evidencia": "cita textual o cadena vacía",
@@ -316,6 +320,74 @@ function combinarFuentes(actuales, nuevas) {
     .slice(0, 12);
 }
 
+async function estimarCategoria(nombre, anio, veces, apiKey) {
+  const prompt = `Nombre: "${nombre}"
+Año del alza: ${anio || "sin dato"}
+Magnitud estimada: ${veces || "sin dato"}x
+País: Chile.
+
+Estima la categoría más probable del alza y, si puedes, una causa breve.
+Usa conocimiento general. No cites fuentes ni inventes URLs. La causa es una
+hipótesis tuya: no la presentes como un dato verificado.
+
+Categorías permitidas:
+${CATEGORIAS.map((c) => `- ${c}`).join("\n")}
+
+Reglas:
+- Si no existe ninguna referencia cultural, religiosa, migratoria, política,
+  deportiva o de moda plausible para ese nombre y año, devuelve
+  categoria "Sin identificar".
+- Si el nombre es común pero no hay un evento claro, puedes usar
+  "Moda / tendencia" o "Religión / tradición" cuando corresponda.
+- No inventes un evento, programa o persona que no exista.
+- La causa debe ser breve y coherente con el año del alza.
+
+Devuelve SOLO:
+{
+  "categoria": "una de las categorías",
+  "causa": "frase breve o cadena vacía",
+  "confianza": "Alta" | "Media" | "Baja",
+  "tipo": "estimada_ia"
+}`;
+
+  try {
+    const raw = await consultarModelo(
+      apiKey,
+      "Eres un analista de nombres chilenos. Haces estimaciones razonadas y transparentes, sin inventar fuentes. Respondes con JSON válido.",
+      prompt,
+      650
+    );
+
+    const categoria = categoriaValida(raw?.categoria);
+    if (!categoria || categoria === "Sin identificar") return null;
+
+    let causa = String(raw?.causa || "").trim().slice(0, 320);
+    if (!causa || pareceSinCausa(causa)) {
+      causa = "Categoría estimada por IA a partir del nombre y el año del alza.";
+    }
+
+    const confianza = ["Alta", "Media", "Baja"].includes(raw?.confianza)
+      ? raw.confianza
+      : "Baja";
+
+    return {
+      categoria,
+      categoria_viz: GRUPO[categoria] || "Sin identificar",
+      causa,
+      fuente: "",
+      fuente_titulo: "",
+      evidencia: "",
+      tipo: "estimada_ia",
+      categoria_estimada_ia: true,
+      confianza,
+      fuentes: [],
+    };
+  } catch (error) {
+    console.error("Estimación:", error.message);
+    return null;
+  }
+}
+
 function completarCausaProbable(resultado, nombre, anio, fuentes) {
   if (resultado) {
     return {
@@ -388,7 +460,8 @@ async function manejarCausa(body, env, origin) {
   }
 
   if (!fuentes.length) {
-    return respuestaJson(resultadoSinCausa(), 200, origin);
+    const estimada = await estimarCategoria(nombre, anio, veces, apiKey);
+    return respuestaJson(estimada || resultadoSinCausa(), 200, origin);
   }
 
   let raw = null;
@@ -408,11 +481,46 @@ async function manejarCausa(body, env, origin) {
   }
 
   const resultado = normalizarResultadoCausa(raw, fuentes, nombre, anio);
-  return respuestaJson(
-    completarCausaProbable(resultado, nombre, anio, fuentes),
-    200,
-    origin
-  );
+  const final = completarCausaProbable(resultado, nombre, anio, fuentes);
+
+  if (final.tipo === "sin_causa") {
+    const estimada = await estimarCategoria(nombre, anio, veces, apiKey);
+    if (estimada) {
+      return respuestaJson(
+        { ...estimada, fuentes: resumenFuentes(fuentes) },
+        200,
+        origin
+      );
+    }
+  }
+
+  return respuestaJson(final, 200, origin);
+}
+
+async function manejarEstimar(body, env, origin) {
+  const nombre = String(body?.nombre || "").trim();
+  const anio = Number(body?.anio);
+  const veces = Number(body?.veces);
+
+  if (!/^[\p{L}\s'.-]{2,40}$/u.test(nombre)) {
+    return respuestaJson(
+      { error: "Nombre inválido. Usa solo letras y espacios." },
+      400,
+      origin
+    );
+  }
+
+  const apiKey = env.DEEPSEEK_API_KEY;
+  if (!apiKey) {
+    return respuestaJson(
+      { error: "Falta configurar DEEPSEEK_API_KEY en el Worker." },
+      500,
+      origin
+    );
+  }
+
+  const estimada = await estimarCategoria(nombre, anio, veces, apiKey);
+  return respuestaJson(estimada || resultadoSinCausa(), 200, origin);
 }
 
 async function manejarBoom(body, env, origin) {
@@ -458,7 +566,7 @@ async function manejarBoom(body, env, origin) {
     );
   }
 
-  const boom = construirBoom(nombre, raw);
+  let boom = construirBoom(nombre, raw);
   if (!boom) {
     return respuestaJson(
       { error: "La serie generada no tiene el formato esperado." },
@@ -479,12 +587,31 @@ async function manejarBoom(body, env, origin) {
     }
   }
 
-  const causa = completarCausaProbable(
+  let causa = completarCausaProbable(
     normalizarResultadoCausa(raw, fuentes, nombre, boom.anio),
     nombre,
     boom.anio,
     fuentes
   );
+
+  if (causa.tipo === "sin_causa") {
+    const estimada = await estimarCategoria(
+      nombre,
+      boom.anio,
+      boom.veces,
+      apiKey
+    );
+    if (estimada) {
+      causa = { ...estimada, fuentes: resumenFuentes(fuentes) };
+      if (estimada.categoria !== boom.categoria) {
+        boom =
+          construirBoom(nombre, {
+            ...raw,
+            categoria: estimada.categoria,
+          }) || boom;
+      }
+    }
+  }
 
   if (causa.tipo === "sin_causa") {
     boom.categoria = "Sin identificar";
@@ -494,6 +621,7 @@ async function manejarBoom(body, env, origin) {
     boom.fuente_titulo = "";
     boom.evidencia = "";
     boom.causa_tipo = "sin_causa";
+    boom.categoria_estimada_ia = false;
     boom.causa_ia = false;
   } else {
     boom.categoria = causa.categoria;
@@ -503,6 +631,7 @@ async function manejarBoom(body, env, origin) {
     boom.fuente_titulo = causa.fuente_titulo;
     boom.evidencia = causa.evidencia;
     boom.causa_tipo = causa.tipo;
+    boom.categoria_estimada_ia = !!causa.categoria_estimada_ia;
     boom.causa_ia = true;
   }
 
@@ -535,6 +664,10 @@ export default {
 
     if (path === "/api/causa") {
       return manejarCausa(body, env, origin);
+    }
+
+    if (path === "/api/estimar") {
+      return manejarEstimar(body, env, origin);
     }
 
     if (path === "/api/boom" || path === "/") {

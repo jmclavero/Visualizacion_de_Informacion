@@ -12,6 +12,8 @@ export const CATEGORIAS = [
   "Deporte",
   "Ciencia y espacio",
   "Migración",
+  "Religión / tradición",
+  "Moda / tendencia",
   "Sin identificar",
 ];
 
@@ -25,6 +27,8 @@ export const GRUPO = {
   "Deporte": "No televisivas",
   "Ciencia y espacio": "No televisivas",
   "Migración": "No televisivas",
+  "Religión / tradición": "No televisivas",
+  "Moda / tendencia": "No televisivas",
   "Sin identificar": "Sin identificar",
 };
 
@@ -56,46 +60,156 @@ function hashNombre(nombre) {
   return h >>> 0;
 }
 
+const FORMAS = ["pico", "ola", "sostenido", "evento"];
+const POPULARIDADES = {
+  "muy raro": 6,
+  raro: 12,
+  "poco comun": 25,
+  "poco común": 25,
+  comun: 50,
+  común: 50,
+  "muy comun": 100,
+  "muy común": 100,
+};
+
+function formaPorCategoria(categoria, semilla) {
+  const mapa = {
+    "Teleserie": "pico",
+    "Música / Viña": "ola",
+    "Series y animación": "pico",
+    "TV en vivo": "evento",
+    "Política, realeza y noticias": "evento",
+    "Cine": "pico",
+    "Deporte": "evento",
+    "Ciencia y espacio": "evento",
+    "Migración": "sostenido",
+    "Religión / tradición": "sostenido",
+    "Moda / tendencia": "ola",
+    "Sin identificar": "ola",
+  };
+  const base = mapa[categoria] || "ola";
+  // Pequeña variación para que dos nombres de la misma categoría no tengan
+  // exactamente la misma forma.
+  if (base === "pico" && semilla % 5 === 0) return "ola";
+  if (base === "ola" && semilla % 7 === 0) return "pico";
+  if (base === "evento" && semilla % 9 === 0) return "pico";
+  return base;
+}
+
+function basePorPopularidad(popularidad, semilla) {
+  const valor = String(popularidad || "").toLowerCase().trim();
+  if (POPULARIDADES[valor]) return POPULARIDADES[valor];
+  const numero = Number(popularidad);
+  if (Number.isFinite(numero)) return Math.max(5, Math.min(180, Math.round(numero)));
+  return 8 + (semilla % 53); // 8..60
+}
+
 /**
  * Genera una serie anual plausible cuando el modelo no entrega una serie
- * utilizable. El año y la magnitud los decide el modelo.
+ * utilizable. No usa una única curva: cambia la forma, la base, el ancho del
+ * pico, la caída y el ruido según el nombre y la categoría.
  */
-function generarSerie(anioBoom, veces, nombre) {
+function generarSerie(anioBoom, veces, nombre, categoria, forma, popularidad) {
   const indiceBoom = Math.max(
-    12,
-    Math.min(N_ANIOS - 1, anioBoom - ANIO_MIN)
+    8,
+    Math.min(N_ANIOS - 2, anioBoom - ANIO_MIN)
   );
   const semilla = hashNombre(nombre);
-  const base = 12 + (semilla % 35); // 12..46
-  const pico = Math.max(base + 10, Math.round(base * veces));
+  const base = basePorPopularidad(popularidad, semilla);
+  const formaElegida =
+    FORMAS.includes(String(forma || "").toLowerCase()) &&
+    String(forma).toLowerCase() !== "sin_dato"
+      ? String(forma).toLowerCase()
+      : formaPorCategoria(categoria, semilla);
+  const objetivo = Math.max(base + 8, Math.round(base * veces));
   const serie = [];
+
+  const meseta =
+    formaElegida === "evento"
+      ? 0
+      : formaElegida === "pico"
+        ? semilla % 2
+        : formaElegida === "ola"
+          ? 2 + (semilla % 3)
+          : 4 + (semilla % 5);
+  const caida =
+    formaElegida === "evento"
+      ? 1.4
+      : formaElegida === "pico"
+        ? 2.5 + (semilla % 4)
+        : formaElegida === "ola"
+          ? 5 + (semilla % 5)
+          : 10 + (semilla % 8);
+
+  const inicioCrecimiento = Math.max(
+    2,
+    indiceBoom - (12 + (semilla % 20))
+  );
 
   for (let i = 0; i < N_ANIOS; i++) {
     let v;
-    if (i < indiceBoom - 3) {
-      const t = i / Math.max(1, indiceBoom - 3);
-      v = base * (0.25 + 0.75 * t);
-    } else if (i < indiceBoom) {
-      v = base;
-    } else if (i === indiceBoom) {
-      v = pico;
+
+    if (i < indiceBoom) {
+      if (i < inicioCrecimiento) {
+        // El nombre empieza siendo raro y crece lentamente.
+        const t = i / Math.max(1, inicioCrecimiento);
+        v = base * (0.08 + 0.92 * Math.pow(t, 0.8));
+      } else {
+        // Los 3 años previos al pico están cerca de la base; así el alza
+        // medida no queda inflada por una rampa artificial.
+        const t =
+          (i - inicioCrecimiento) /
+          Math.max(1, indiceBoom - inicioCrecimiento);
+        v = base * (0.9 + 0.1 * t);
+      }
+    } else if (i <= indiceBoom + meseta) {
+      v = objetivo * (1 - ((i - indiceBoom) / Math.max(1, meseta + 1)) * 0.05);
     } else {
-      const d = i - indiceBoom;
-      v = pico * Math.exp(-d / 5.5) + base * 0.06;
+      const d = i - indiceBoom - meseta;
+      v = objetivo * Math.exp(-d / caida) + base * 0.25;
     }
 
-    // Variación determinista para que no sea una línea perfecta.
-    if (i < indiceBoom - 3 || i > indiceBoom) {
-      v += ((semilla + i * 7) % 7) - 3;
+    // Ruido determinista y pequeño, no una línea perfecta.
+    const ruido = (((semilla + i * 53) % 15) - 7) / 100;
+    v += v * ruido;
+
+    // Eco secundario ocasional, como en las series reales.
+    if (
+      semilla % 3 === 0 &&
+      i === indiceBoom + meseta + 4 + (semilla % 3)
+    ) {
+      v += objetivo * 0.06;
     }
+
     serie.push(Math.max(0, Math.round(v)));
   }
+
   return serie;
 }
 
-function detectarBoom(serie) {
+function detectarPico(serie, indiceBoom) {
+  const centro = Math.max(3, Math.min(N_ANIOS - 1, indiceBoom));
+  const desde = Math.max(3, centro - 3);
+  const hasta = Math.min(N_ANIOS - 1, centro + 5);
+
+  let mejor = centro;
+  let valor = serie[mejor] || 0;
+  for (let i = desde; i <= hasta; i++) {
+    if (serie[i] > valor) {
+      valor = serie[i];
+      mejor = i;
+    }
+  }
+  return mejor;
+}
+
+function detectarBoom(serie, centro = null) {
   let mejor = null;
-  for (let i = 3; i < N_ANIOS; i++) {
+  const desde = centro === null ? 3 : Math.max(3, centro - 3);
+  const hasta =
+    centro === null ? N_ANIOS - 1 : Math.min(N_ANIOS - 1, centro + 5);
+
+  for (let i = desde; i <= hasta; i++) {
     const previo = (serie[i - 1] + serie[i - 2] + serie[i - 3]) / 3;
     if (previo <= 0) continue;
     const ratio = serie[i] / previo;
@@ -105,9 +219,14 @@ function detectarBoom(serie) {
   }
 
   if (!mejor) {
-    let iMax = 0;
-    for (let i = 1; i < N_ANIOS; i++) {
-      if (serie[i] > serie[iMax]) iMax = i;
+    let iMax =
+      centro === null
+        ? 0
+        : Math.max(3, Math.min(N_ANIOS - 1, Math.round(centro)));
+    if (centro === null) {
+      for (let i = 1; i < N_ANIOS; i++) {
+        if (serie[i] > serie[iMax]) iMax = i;
+      }
     }
     const previo =
       iMax >= 3
@@ -137,18 +256,26 @@ export function construirBoom(nombre, raw) {
     : 1980;
   const vecesModelo = Number(raw.veces);
   const vecesObjetivo = Number.isFinite(vecesModelo)
-    ? Math.max(2, Math.min(30, vecesModelo))
-    : 8;
+    ? Math.max(2, Math.min(12, vecesModelo))
+    : 5;
 
-  const serie = generarSerie(anioBoom, vecesObjetivo, nombre);
-  const boom = detectarBoom(serie);
+  const serie = generarSerie(
+    anioBoom,
+    vecesObjetivo,
+    nombre,
+    raw.categoria,
+    raw.forma,
+    raw.popularidad
+  );
+  const boom = detectarBoom(serie, anioBoom - ANIO_MIN);
   if (!boom) return null;
 
   const anio = ANIO_MIN + boom.i;
   const n = serie[boom.i];
   const prev = Math.round(boom.previo);
   const extra = n - prev;
-  const veces = prev > 0 ? Math.round((n / prev) * 10) / 10 : 0;
+  const veces =
+    boom.previo > 0 ? Math.round((n / boom.previo) * 10) / 10 : 0;
 
   const GRUPOS = [
     "Teleseries",
