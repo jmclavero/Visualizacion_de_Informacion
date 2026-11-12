@@ -3,6 +3,6 @@
 if (typeof Protobject !== "undefined") {
   Protobject.initialize([
     { name: "Visualización", page: "index.html", main: true },
-    { name: "Voz", page: "voice.html?v=20261111e" },
+    { name: "Voz", page: "voice.html" },
   ]);
 }
