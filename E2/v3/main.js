@@ -346,7 +346,6 @@ const ORDEN_SWARM = [
   "Música / Viña",
   "Otras causas televisivas",
   "No televisivas",
-  "Sin identificar",
 ];
 
 const GRUPO_SWARM = {
@@ -373,6 +372,17 @@ const COLOR_SWARM = {
 };
 
 const RADIO_SWARM = 5;
+
+// Devuelve un grupo válido del beeswarm. Los nombres sin categoría no tienen
+// grupo y, por lo tanto, no se dibujan.
+function grupoDeBoom(boom) {
+  if (!boom) return null;
+  const grupo =
+    boom.categoria_viz && ORDEN_SWARM.includes(boom.categoria_viz)
+      ? boom.categoria_viz
+      : GRUPO_SWARM[boom.categoria];
+  return ORDEN_SWARM.includes(grupo) ? grupo : null;
+}
 
 // Dimensiones internas del SVG y factor de zoom de página completa.
 const ANCHO_SWARM = 820;
@@ -838,11 +848,11 @@ function agregarBoomReal(boom) {
     return;
   }
 
-  let grupo =
-    boom.categoria_viz && ORDEN_SWARM.includes(boom.categoria_viz)
-      ? boom.categoria_viz
-      : GRUPO_SWARM[boom.categoria] || "Sin identificar";
-  if (!ORDEN_SWARM.includes(grupo)) grupo = "Sin identificar";
+  const grupo = grupoDeBoom(boom);
+  if (!grupo) {
+    estadoVoz("El nombre no tiene una categoría; no se agrega al gráfico.");
+    return false;
+  }
   boom.categoria_viz = grupo;
 
   const existente = nodosSwarm.find(
@@ -872,7 +882,7 @@ function agregarBoomReal(boom) {
 
   const nodo = { id, boom, grupo, veces: boom.veces, x, y, ia: false, real: true };
   nodosSwarm.push(nodo);
-  DATOS.booms.push(boom);
+  if (!DATOS.booms.includes(boom)) DATOS.booms.push(boom);
 
   gruposActivos.add(grupo);
   ultimaCategoriaActivada = grupo;
@@ -1021,11 +1031,40 @@ async function manejarNombreVoz(nombreCrudo) {
 
   ocultarSinRegistros();
 
-  // 1. Booms ya curados con datos y causa reales.
+  // 1. Booms ya curados.
   const curado = buscarBoomReal(nombre);
   if (curado) {
-    estadoVoz(`Dato real curado: ${curado.nombre} (${curado.anio}).`);
-    seleccionarBoomReal(curado);
+    if (grupoDeBoom(curado)) {
+      estadoVoz(`Dato real curado: ${curado.nombre} (${curado.anio}).`);
+      seleccionarBoomReal(curado);
+      return;
+    }
+
+    // El nombre curado existe, pero estaba en la categoría retirada.
+    // Intentamos categorizarlo; si no se puede, mostramos solo su detalle.
+    vozOcupada = true;
+    try {
+      const boom = { ...curado, real: true };
+      estadoVoz(
+        `Dato real: ${boom.nombre}. Estimando su categoría con IA…`
+      );
+      await consultarCategoriaEstimada(boom);
+      if (grupoDeBoom(boom)) {
+        agregarBoomReal(boom);
+        estadoVoz(
+          `Dato real agregado: ${boom.nombre} (${boom.anio}) · categoría estimada IA.`
+        );
+      } else {
+        boom.aviso =
+          "No se encontró una causa para este nombre; no se agrega al gráfico.";
+        estadoVoz(
+          `Dato real: ${boom.nombre}. No se encontró una causa; se muestra solo el detalle.`
+        );
+        mostrarDetalleRealSinPunto(boom);
+      }
+    } finally {
+      vozOcupada = false;
+    }
     return;
   }
 
@@ -1109,6 +1148,17 @@ async function manejarNombreVoz(nombreCrudo) {
         estadoVoz("Sin fuente para la causa. Estimando la categoría con IA…");
         await consultarCategoriaEstimada(boom);
       }
+
+      if (!grupoDeBoom(boom)) {
+        boom.aviso =
+          "No se encontró una causa para este nombre; no se agrega al gráfico.";
+        estadoVoz(
+          `Dato real: ${boom.nombre}. No se encontró una causa; se muestra solo el detalle.`
+        );
+        mostrarDetalleRealSinPunto(boom);
+        return;
+      }
+
       agregarBoomReal(boom);
       estadoVoz(
         boom.causa_ia
@@ -1172,16 +1222,13 @@ function posicionarTooltipSwarm(ev) {
 function mostrarTooltipSwarm(ev, d) {
   const tip = document.getElementById("swarm-tooltip");
   if (!tip) return;
-  const grupo =
-    d.boom.categoria_viz && ORDEN_SWARM.includes(d.boom.categoria_viz)
-      ? d.boom.categoria_viz
-      : GRUPO_SWARM[d.boom.categoria] || "Sin identificar";
+  const grupo = grupoDeBoom(d.boom) || "Sin categoría";
   const categoriaIa = d.boom.categoria_estimada_ia
     ? " · categoría estimada IA"
     : "";
   tip.innerHTML =
     `<strong>${d.boom.nombre} (${d.boom.anio})</strong><br>` +
-    `<span class="punto-color" style="background:${COLOR_SWARM[grupo]}"></span>` +
+    `<span class="punto-color" style="background:${COLOR_SWARM[grupo] || "#8a8a85"}"></span>` +
     `${grupo}${categoriaIa} · Alza de ${d.veces.toFixed(1)}x veces`;
   tip.hidden = false;
   posicionarTooltipSwarm(ev);
@@ -1202,18 +1249,16 @@ function escaparHtml(texto) {
 }
 
 function llenarDetalleSwarm(b) {
-  const grupo =
-    b.categoria_viz && ORDEN_SWARM.includes(b.categoria_viz)
-      ? b.categoria_viz
-      : GRUPO_SWARM[b.categoria] || "Sin identificar";
-  const color = COLOR_SWARM[grupo];
+  const grupo = grupoDeBoom(b);
+  const color = grupo ? COLOR_SWARM[grupo] : "#8a8a85";
 
   document.getElementById("swarm-detalle-nombre").textContent = `${b.nombre} (${b.anio})`;
 
   const categoriaEl = document.getElementById("swarm-detalle-categoria");
   if (categoriaEl) {
-    categoriaEl.textContent = grupo;
-    categoriaEl.style.color = color;
+    categoriaEl.hidden = !grupo;
+    categoriaEl.textContent = grupo || "";
+    if (grupo) categoriaEl.style.color = color;
   }
 
   const causaEl = document.getElementById("swarm-detalle-causa");
@@ -1223,14 +1268,17 @@ function llenarDetalleSwarm(b) {
   const tipoCausa =
     b.causa_tipo || (b.causa_ia ? "probable" : "sin_causa");
   const categoriaEstimada =
-    !!b.categoria_estimada_ia || tipoCausa === "estimada_ia";
+    !!grupo &&
+    (!!b.categoria_estimada_ia || tipoCausa === "estimada_ia");
 
   const categoriaIaEl = document.getElementById(
     "swarm-detalle-categoria-ia"
   );
   if (categoriaIaEl) categoriaIaEl.hidden = !categoriaEstimada;
 
-  if (tipoCausa === "estimada_ia" && causaTexto) {
+  if (!grupo) {
+    causaEl.textContent = "No se encontró una causa para este nombre.";
+  } else if (tipoCausa === "estimada_ia" && causaTexto) {
     causaEl.textContent = `Causa estimada IA: ${causaTexto}.`;
   } else if (tipoCausa === "documentada" && causaTexto) {
     causaEl.textContent = `Causa documentada (fuente real): ${causaTexto}.`;
@@ -1543,9 +1591,8 @@ function dibujarSwarm() {
   centroXSwarm = centroX;
   escalaYSwarm = y;
 
-  // El layout de los 203 puntos se calcula una sola vez con todos ellos;
-  // filtrar solo decide cuáles se dibujan, así cada punto aparece siempre
-  // en el mismo lugar.
+  // El layout se calcula una sola vez con los puntos que sí tienen categoría.
+  // Los nombres sin categoría no forman parte del beeswarm.
   if (!nodosSwarm) nodosSwarm = calcularLayoutSwarm(centroX, y, margen, W, H);
 
   cont.innerHTML = "";
@@ -1614,12 +1661,14 @@ function dibujarSwarm() {
 
 function calcularLayoutSwarm(centroX, y, margen, W, H) {
   const radio = RADIO_SWARM;
-  const nodos = DATOS.booms.map((b, i) => ({
-    id: i,
-    boom: b,
-    grupo: GRUPO_SWARM[b.categoria] || "Sin identificar",
-    veces: b.veces,
-  }));
+  const nodos = DATOS.booms
+    .filter((b) => grupoDeBoom(b))
+    .map((b, i) => ({
+      id: i,
+      boom: b,
+      grupo: grupoDeBoom(b),
+      veces: b.veces,
+    }));
 
   // Semilla determinista: mismo layout en cada carga.
   let semilla = 1;

@@ -5,6 +5,8 @@ nombres con registros reales**.
 
 ## Comportamiento
 
+- El beeswarm solo muestra nombres con **alzas identificadas y categoría**.
+  La categoría "Sin identificar" ya no existe en el gráfico ni en la leyenda.
 - Se buscan primero los 203 booms curados.
 - Luego se busca en los shards completos del Registro Civil (1920-2021).
 - Si el nombre no existe en ninguno de esos datos:
@@ -17,11 +19,11 @@ nombres con registros reales**.
 - Para entrar al beeswarm se exigen **más de 30 inscripciones en el año del
   peak (31 o más)** y un alza de **4x o superior**.
 - Si cumple ambas condiciones:
-  - se agrega al beeswarm con datos reales;
   - se busca una causa documentada/probable;
-  - si no hay fuente, se intenta una categoría estimada IA.
-- Si la IA no encuentra información acorde, la categoría queda en
-  **Sin identificar**.
+  - si no hay fuente, se intenta una categoría estimada IA;
+  - solo si consigue una categoría se agrega al beeswarm;
+  - si no, se muestra solo el detalle real y se indica que no se encontró una
+    causa.
 
 ## Datos
 
