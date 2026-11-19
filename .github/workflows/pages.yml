@@ -40,6 +40,8 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: "site"
+      - name: Esperar disponibilidad del artefacto
+        run: sleep 10
       - name: Deploy a GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
