@@ -1111,7 +1111,11 @@ Reglas:
   categoria "Sin identificar".
 - Si el nombre es común pero no hay un evento claro, puedes usar
   "Moda / tendencia" o "Religión / tradición" cuando corresponda.
-- No inventes un evento, programa o persona que no exista.
+- No inventes un evento, programa, persona, festival, concierto, estreno,
+  premiación ni una fecha exacta que no puedas verificar.
+- Si solo tienes una asociación general, describe esa asociación sin
+  inventar una aparición o un hecho concreto. Por ejemplo: "posible relación
+  con la popularidad de un artista en esa década", no un concierto inventado.
 - La causa debe ser breve y coherente con el año del alza.
 
 Devuelve SOLO:
