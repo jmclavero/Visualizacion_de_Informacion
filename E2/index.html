@@ -47,10 +47,10 @@
     }
     .entregas {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 20px;
       width: 100%;
-      max-width: 900px;
+      max-width: 1100px;
     }
     .entrega {
       display: flex;
@@ -105,7 +105,7 @@
       font-size: 0.8rem;
       text-align: center;
     }
-    @media (max-width: 700px) {
+    @media (max-width: 950px) {
       .entregas { grid-template-columns: 1fr; }
     }
   </style>
@@ -139,6 +139,17 @@
         como estimados.
       </p>
       <span class="abrir">Abrir V2 →</span>
+    </a>
+
+    <a class="entrega" href="v3/">
+      <span class="etiqueta">E2 · V3</span>
+      <h2>Búsqueda estricta</h2>
+      <p>
+        Solo se grafican nombres que existen en el Registro Civil. Si no hay
+        registros, se informa y no se agrega al beeswarm. Las categorías
+        estimadas con IA se usan solo cuando hay información que las respalde.
+      </p>
+      <span class="abrir">Abrir V3 →</span>
     </a>
   </div>
 

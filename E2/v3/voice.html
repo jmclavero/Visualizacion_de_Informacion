@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Voz · Protobject</title>
+  <script src="https://app.protobject.com/framework/p.js"></script>
+  <script src="config.js?v=20261118a"></script>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: max(18px, env(safe-area-inset-top))
+        max(18px, env(safe-area-inset-right))
+        max(18px, env(safe-area-inset-bottom))
+        max(18px, env(safe-area-inset-left));
+      overflow: hidden;
+      background: #f9f9f7;
+      color: #0b0b0b;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      text-align: center;
+      overscroll-behavior: none;
+    }
+    #hablar {
+      flex: 0 0 auto;
+      width: min(100%, 720px);
+      height: clamp(110px, 26vh, 190px);
+      border: 0;
+      border-radius: 28px;
+      padding: 0 24px;
+      background: #1baf7a;
+      color: #fff;
+      font: inherit;
+      font-size: clamp(1.8rem, 7vw, 3.2rem);
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      box-shadow: 0 10px 30px rgba(27, 175, 122, 0.22);
+      transition: filter 0.1s ease, transform 0.1s ease;
+    }
+    #hablar:active {
+      filter: brightness(0.9);
+      transform: scale(0.99);
+    }
+    #hablar:disabled { opacity: 0.75; cursor: default; }
+    .panel {
+      width: min(100%, 720px);
+      padding: 16px 20px 18px;
+      background: #fff;
+      border: 1px solid #e1e0d9;
+      border-radius: 20px;
+    }
+    #transcripcion {
+      margin: 0 0 6px;
+      min-height: 1.6em;
+      font-size: 1.15rem;
+      font-weight: 600;
+    }
+    #estado {
+      margin: 0;
+      min-height: 1.4em;
+      color: #52514e;
+      font-size: 0.92rem;
+    }
+    /* En horizontal el botón y el texto quedan lado a lado. */
+    @media (orientation: landscape) and (max-height: 620px) {
+      body {
+        flex-direction: row;
+        align-items: stretch;
+        gap: 16px;
+        padding: max(14px, env(safe-area-inset-top))
+          max(14px, env(safe-area-inset-right))
+          max(14px, env(safe-area-inset-bottom))
+          max(14px, env(safe-area-inset-left));
+      }
+      #hablar {
+        width: auto;
+        height: auto;
+        min-height: 0;
+        flex: 1 1 55%;
+        border-radius: 24px;
+        font-size: clamp(2rem, 5.5vw, 3.4rem);
+      }
+      .panel {
+        width: auto;
+        flex: 0 1 38%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        border-radius: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <button id="hablar" type="button">HABLAR</button>
+  <div class="panel">
+    <p id="transcripcion"></p>
+    <p id="estado">Toca HABLAR y di tu nombre.</p>
+  </div>
+
+  <script>
+    (function () {
+      var hablarBtn = document.getElementById("hablar");
+      var transcripcionEl = document.getElementById("transcripcion");
+      var estadoEl = document.getElementById("estado");
+
+      var reconociendo = false;
+      var ultimoTexto = "";
+      var timerEscucha = null;
+
+      function enviar(mensaje) {
+        if (typeof Protobject === "undefined" || !Protobject.Core) return;
+        Protobject.Core.send(mensaje).to("index.html");
+      }
+
+      function limpiarNombre(texto) {
+        return String(texto || "")
+          .replace(/^(me llamo|mi nombre es|soy|el nombre es)\s+/i, "")
+          .replace(/[.,!?¿¡]/g, "")
+          .trim()
+          .replace(/\s+/g, " ");
+      }
+
+      function terminarConError(texto) {
+        reconociendo = false;
+        clearTimeout(timerEscucha);
+        hablarBtn.disabled = false;
+        hablarBtn.textContent = "HABLAR";
+        estadoEl.textContent = texto;
+        enviar({ tipo: "voz", estado: "error", texto: texto });
+      }
+
+      function iniciar() {
+        if (reconociendo) return;
+        if (typeof Protobject === "undefined" || !Protobject.VoiceRecognition) {
+          estadoEl.textContent = "Reconocimiento de voz no disponible en este navegador.";
+          return;
+        }
+
+        reconociendo = true;
+        ultimoTexto = "";
+        transcripcionEl.textContent = "";
+        hablarBtn.disabled = true;
+        hablarBtn.textContent = "ESCUCHANDO…";
+        estadoEl.textContent = "Di tu nombre.";
+        enviar({ tipo: "voz", estado: "escuchando" });
+
+        try {
+          Protobject.VoiceRecognition.start("es-CL");
+          clearTimeout(timerEscucha);
+          timerEscucha = setTimeout(function () {
+            if (reconociendo) {
+              try { Protobject.VoiceRecognition.stop(); } catch (error) {}
+            }
+          }, 8000);
+        } catch (error) {
+          terminarConError("No se pudo iniciar el micrófono: " + error.message);
+        }
+      }
+
+      if (typeof Protobject !== "undefined" && Protobject.VoiceRecognition) {
+        Protobject.VoiceRecognition.onData(function (transcript) {
+          ultimoTexto = transcript || "";
+          transcripcionEl.textContent = ultimoTexto;
+          // El componente usa reconocimiento continuo. Al recibir el nombre,
+          // lo detenemos para que onFinish envíe el resultado.
+          try { Protobject.VoiceRecognition.stop(); } catch (error) {}
+        });
+
+        Protobject.VoiceRecognition.onFinish(function () {
+          clearTimeout(timerEscucha);
+          reconociendo = false;
+          hablarBtn.disabled = false;
+          hablarBtn.textContent = "HABLAR";
+
+          var nombre = limpiarNombre(ultimoTexto);
+          if (!nombre) {
+            terminarConError("No se entendió el nombre. Intenta de nuevo.");
+            return;
+          }
+
+          transcripcionEl.textContent = "“" + nombre + "”";
+          estadoEl.textContent = "Nombre enviado. Esperando el resultado…";
+          enviar({ tipo: "voz", estado: "listo" });
+          enviar({ tipo: "nombre", nombre: nombre });
+        });
+
+        hablarBtn.addEventListener("click", iniciar);
+      } else {
+        hablarBtn.disabled = true;
+        estadoEl.textContent = "Este navegador no soporta reconocimiento de voz.";
+      }
+    })();
+  </script>
+</body>
+</html>
