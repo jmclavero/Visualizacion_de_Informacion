@@ -614,9 +614,8 @@ body.intro-activa {
 
 #swarm-grafico-detalle {
   position: relative;
-  flex: 0 0 auto;
+  flex: 1 1 0;
   width: 100%;
-  height: clamp(220px, 38vh, 360px);
   min-height: 220px;
   overflow: hidden;
 }
@@ -862,7 +861,7 @@ body.intro-activa {
   }
 
   #swarm-grafico-detalle {
-    height: clamp(220px, 32vh, 300px);
+    flex: 1 1 0;
     min-height: 220px;
   }
 }

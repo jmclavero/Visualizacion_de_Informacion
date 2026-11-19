@@ -1355,6 +1355,14 @@ function mostrarPanelSwarm(b) {
   el.classList.add("visible");
   llenarDetalleSwarm(b);
   actualizarCursorDetalle(indiceCursorDetalle);
+
+  // El panel acaba de cambiar de tamaño: Plotly debe ocupar todo el alto
+  // flexible disponible, no solo el que tenía cuando estaba oculto.
+  if (typeof Plotly !== "undefined" && Plotly.Plots) {
+    requestAnimationFrame(() => {
+      Plotly.Plots.resize("swarm-grafico-detalle");
+    });
+  }
 }
 
 function seleccionarPuntoSwarm(ev, d) {
