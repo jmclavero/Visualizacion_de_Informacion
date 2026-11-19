@@ -44,11 +44,22 @@ function dibujarDetalle(b, contenedorId, color) {
   };
 
   const layout = {
-    margin: { t: 18, r: 20, b: 36, l: 56 },
+    margin: { t: 22, r: 20, b: 64, l: 60 },
     paper_bgcolor: "transparent",
     plot_bgcolor: "transparent",
-    xaxis: { range: [DATOS.anio_min - 2, anioFin + 2], gridcolor: "#e1e0d9", fixedrange: true },
-    yaxis: { title: "Inscripciones", rangemode: "tozero", gridcolor: "#e1e0d9", fixedrange: true },
+    xaxis: {
+      range: [DATOS.anio_min - 2, anioFin + 2],
+      gridcolor: "#e1e0d9",
+      fixedrange: true,
+      automargin: true,
+    },
+    yaxis: {
+      title: "Inscripciones",
+      rangemode: "tozero",
+      gridcolor: "#e1e0d9",
+      fixedrange: true,
+      automargin: true,
+    },
     dragmode: false,
     showlegend: false,
     shapes: [
