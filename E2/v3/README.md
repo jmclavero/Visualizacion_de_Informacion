@@ -14,7 +14,9 @@ nombres con registros reales**.
 - Si el nombre existe pero no tiene un alza suficiente:
   - se muestra su detalle real, sin punto;
   - se intenta estimar su categoría con IA.
-- Si el nombre tiene un alza real y significativa:
+- Para entrar al beeswarm se exigen **más de 30 inscripciones en el año del
+  peak (31 o más)** y un alza de **4x o superior**.
+- Si cumple ambas condiciones:
   - se agrega al beeswarm con datos reales;
   - se busca una causa documentada/probable;
   - si no hay fuente, se intenta una categoría estimada IA.

@@ -616,7 +616,9 @@ async function cargarShardReal(nombre) {
   };
 }
 
-const MIN_INSCRIPCIONES_BOOM = 20;
+// Para entrar al beeswarm se exigen más de 30 inscripciones en el año del
+// peak (31 o más) y un alza de 4x o superior.
+const MIN_INSCRIPCIONES_BOOM = 31;
 
 function detectarBoomSerie(serie, minimoInscripciones = 0) {
   let mejor = null;
@@ -1069,7 +1071,7 @@ async function manejarNombreVoz(nombreCrudo) {
         boom.aviso =
           `No entra al beeswarm: el alza de ${boom.veces.toFixed(1)}x en ` +
           `${boom.anio} ocurre con ${boom.n} inscripciones, por debajo del ` +
-          `mínimo de ${MIN_INSCRIPCIONES_BOOM}. Abajo se muestran sus datos reales.`;
+          `mínimo de 31 (más de 30). Abajo se muestran sus datos reales.`;
         estadoVoz(
           boom.categoria_estimada_ia
             ? `Dato real: ${boom.nombre}. Categoría estimada IA: ${boom.categoria_viz}. No entra al beeswarm por pocas inscripciones.`
