@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>La influencia de la televisión en los nombres de los chilenos · V4</title>
+<link rel="stylesheet" href="style.css?v=20261125e" />
+<script src="https://app.protobject.com/framework/p.js"></script>
+<script src="config.js?v=20261125e"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body class="intro-activa">
+<div id="overview">
+  <div class="overview-contenido">
+    <h2 class="overview-titulo">
+      ¿Cómo la televisión ha influido en los nombres de los bebés chilenos?
+    </h2>
+    <p class="overview-subtitulo">
+      Basado en alzas significativas de nombres chilenos entre 1920 y 2021.
+    </p>
+    <div class="bebes-visual">
+      <div class="leyenda-lateral leyenda-tv">
+        <svg class="leyenda-icono-grande" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="7.6" r="4.9" />
+          <path d="M12 12.4c-4.1 0-6.9 2.5-6.9 6 0 1.3 1 2.3 2.3 2.3h9.2c1.3 0 2.3-1 2.3-2.3 0-3.5-2.8-6-6.9-6z" />
+        </svg>
+        <div class="leyenda-texto">
+          <strong class="leyenda-num" id="bebe-tv-conteo">—</strong>
+          <p class="leyenda-desc">Nombres con causa televisiva identificada</p>
+        </div>
+      </div>
+      <div class="bebes-grid" id="bebes-grid" aria-hidden="true"></div>
+      <script>
+        (function () {
+          var grid = document.getElementById("bebes-grid");
+          if (!grid) return;
+          var svg = '<svg viewBox="0 0 24 24" role="img"><circle cx="12" cy="7.6" r="4.9"/><path d="M12 12.4c-4.1 0-6.9 2.5-6.9 6 0 1.3 1 2.3 2.3 2.3h9.2c1.3 0 2.3-1 2.3-2.3 0-3.5-2.8-6-6.9-6z"/><path d="M12 2.1c1 0 1.9.6 2.3 1.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>';
+          for (var i = 0; i < 100; i++) {
+            var d = document.createElement("div");
+            d.className = "bebe";
+            d.innerHTML = svg;
+            grid.appendChild(d);
+          }
+        })();
+      </script>
+      <div class="leyenda-lateral leyenda-gris">
+        <svg class="leyenda-icono-grande" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="7.6" r="4.9" />
+          <path d="M12 12.4c-4.1 0-6.9 2.5-6.9 6 0 1.3 1 2.3 2.3 2.3h9.2c1.3 0 2.3-1 2.3-2.3 0-3.5-2.8-6-6.9-6z" />
+        </svg>
+        <div class="leyenda-texto">
+          <strong class="leyenda-num" id="bebe-gris-conteo">—</strong>
+          <p class="leyenda-desc">Nombres de alzas no televisivas</p>
+        </div>
+      </div>
+    </div>
+    <p class="bebes-nota">
+      De las 203 alzas significativa, 144 no tienen causa identificada.
+    </p>
+  </div>
+
+  <div class="v4-instruccion">
+    <p class="v4-prompt">Presiona el botón del micrófono y di tu nombre</p>
+    <p class="v4-subprompt">El gráfico aparecerá automáticamente.</p>
+    <div class="v4-qr-caja" id="v4-qr-caja">
+      <div id="v4-qr" class="v4-qr" aria-label="Código QR para conectar el micrófono"></div>
+      <p class="v4-qr-texto">Escanea para conectar el micrófono</p>
+    </div>
+    <p class="v4-estado" id="v4-estado">Esperando conexión del micrófono…</p>
+  </div>
+</div>
+
+<main id="comparador" hidden>
+  <div class="comparador-contenido">
+    <p class="comparador-eyebrow">Comparación por categoría</p>
+    <h2 class="comparador-categoria" id="comparador-categoria">—</h2>
+    <p class="comparador-descripcion" id="comparador-descripcion">
+      Tu nombre comparado con las referencias alta, media y baja de su categoría.
+    </p>
+    <div id="comparador-grafico"></div>
+    <p class="comparador-mensaje" id="comparador-mensaje" hidden></p>
+    <p class="comparador-nota" id="comparador-nota"></p>
+  </div>
+</main>
+
+<script defer src="api-config.js?v=20261125e"></script>
+<script defer src="main.js?v=20261125e"></script>
+<script defer src="protobject.js?v=20261125e"></script>
+</body>
+</html>
