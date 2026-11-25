@@ -4,14 +4,15 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>La influencia de la televisión en los nombres de los chilenos · V4</title>
-<link rel="stylesheet" href="style.css?v=20261125g" />
+<link rel="stylesheet" href="style.css?v=20261125h" />
 <script src="https://app.protobject.com/framework/p.js"></script>
-<script src="config.js?v=20261125g"></script>
+<script src="config.js?v=20261125h"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body class="intro-activa">
 <div id="overview">
+  <div class="overview-layout">
   <div class="overview-contenido">
     <h2 class="overview-titulo">
       ¿Cómo la televisión ha influido en los nombres de los bebés chilenos?
@@ -60,7 +61,7 @@
     </p>
   </div>
 
-  <div class="v4-instruccion">
+  <aside class="v4-instruccion">
     <p class="v4-prompt">Presiona el botón del micrófono y di tu nombre</p>
     <p class="v4-subprompt">El gráfico aparecerá automáticamente.</p>
     <div class="v4-qr-caja" id="v4-qr-caja">
@@ -68,6 +69,7 @@
       <p class="v4-qr-texto">Escanea para conectar el micrófono</p>
     </div>
     <p class="v4-estado" id="v4-estado">Esperando conexión del micrófono…</p>
+  </aside>
   </div>
 </div>
 
@@ -81,16 +83,14 @@
     <div id="comparador-visual">
       <h3 class="comparador-subtitulo">Series anuales de cada nombre</h3>
       <div id="comparador-grafico"></div>
-      <h3 class="comparador-subtitulo">Alza de cada punto</h3>
-      <div id="comparador-alza"></div>
     </div>
     <p class="comparador-mensaje" id="comparador-mensaje" hidden></p>
     <p class="comparador-nota" id="comparador-nota"></p>
   </div>
 </main>
 
-<script defer src="api-config.js?v=20261125g"></script>
-<script defer src="main.js?v=20261125g"></script>
-<script defer src="protobject.js?v=20261125g"></script>
+<script defer src="api-config.js?v=20261125h"></script>
+<script defer src="main.js?v=20261125h"></script>
+<script defer src="protobject.js?v=20261125h"></script>
 </body>
 </html>

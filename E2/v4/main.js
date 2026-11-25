@@ -32,12 +32,19 @@ const CATEGORIAS_TV = new Set([
 
 const RETRASO_ENTRE_BEBES = 25;
 
-const raiz = getComputedStyle(document.documentElement);
-const COLORES = {
-  "Teleseries": raiz.getPropertyValue("--cat-teleserie").trim(),
-  "Música / Viña": raiz.getPropertyValue("--cat-musica").trim(),
-  "Otras causas televisivas": raiz.getPropertyValue("--cat-otra").trim(),
-  "No televisivas": raiz.getPropertyValue("--cat-no-tv").trim(),
+// Colores de categoría: deliberadamente fuera del verde/amarillo/rojo que
+// usan las líneas de referencia.
+const COLORES_CATEGORIA = {
+  "Teleseries": "#2a6fdb",
+  "Música / Viña": "#7b4bd8",
+  "Otras causas televisivas": "#0f8f9e",
+  "No televisivas": "#c2478a",
+};
+
+const COLORES_REFERENCIA = {
+  alta: "#2f9e44",
+  media: "#d7a400",
+  baja: "#c63b3b",
 };
 
 let DATOS = null;
@@ -380,8 +387,18 @@ function mostrarVisualComparador(visible) {
   if (visual) visual.hidden = !visible;
 }
 
+function limpiarColorCategoria() {
+  const contenido = document.querySelector(".comparador-contenido");
+  if (contenido) contenido.style.removeProperty("--categoria-color");
+  const categoriaEl = document.getElementById("comparador-categoria");
+  if (categoriaEl) categoriaEl.style.color = "";
+  const eyebrow = document.querySelector(".comparador-eyebrow");
+  if (eyebrow) eyebrow.style.color = "";
+}
+
 function mostrarCargando(nombre) {
   abrirComparador();
+  limpiarColorCategoria();
   document.getElementById("comparador-categoria").textContent = "Buscando…";
   document.getElementById(
     "comparador-descripcion"
@@ -395,10 +412,10 @@ function mostrarCargando(nombre) {
 
 function mostrarMensaje(titulo, texto) {
   abrirComparador();
+  limpiarColorCategoria();
   document.getElementById("comparador-categoria").textContent = titulo;
   document.getElementById("comparador-descripcion").textContent = "";
   document.getElementById("comparador-grafico").innerHTML = "";
-  document.getElementById("comparador-alza").innerHTML = "";
   mostrarVisualComparador(false);
   const mensaje = document.getElementById("comparador-mensaje");
   mensaje.hidden = false;
@@ -412,7 +429,16 @@ function mostrarComparador(grupo) {
   const refs = REFERENCIAS[grupo];
   const usuarios = ESTADO[grupo] || [];
 
-  document.getElementById("comparador-categoria").textContent = grupo;
+  const colorCategoria = COLORES_CATEGORIA[grupo] || "#0b0b0b";
+  const contenido = document.querySelector(".comparador-contenido");
+  if (contenido) contenido.style.setProperty("--categoria-color", colorCategoria);
+
+  const categoriaEl = document.getElementById("comparador-categoria");
+  categoriaEl.textContent = grupo;
+  categoriaEl.style.color = colorCategoria;
+  const eyebrow = document.querySelector(".comparador-eyebrow");
+  if (eyebrow) eyebrow.style.color = colorCategoria;
+
   const actual = usuarios.find((p) => p.esActual) || puntoActual;
   document.getElementById(
     "comparador-descripcion"
@@ -428,14 +454,12 @@ function mostrarComparador(grupo) {
     ? " La categoría de tu nombre es una estimación IA."
     : "";
   nota.textContent =
-    "Arriba se comparan las series anuales de cada nombre; abajo, el punto " +
-    "de alza. Las referencias alta, media y baja son nombres reales de los 59 " +
-    "booms curados de esta categoría. Tus nombres se agregan a medida que los " +
-    "dices." +
+    "Verde: referencia alta · amarillo: media · rojo: baja. La línea con " +
+    "borde es tu nombre; los puntos huecos son alzas menores a 4x. Tus " +
+    "nombres se agregan a medida que los dices." +
     estimada;
 
   dibujarSeries(grupo, refs, usuarios);
-  dibujarAlza(grupo, refs, usuarios);
 }
 
 // ---------- Gráfico de comparación ----------
@@ -461,6 +485,7 @@ function construirFilas(grupo, refs, usuarios) {
         : " · Dicho"
       : "";
     filas.push({
+      tipo: entrada.tipo,
       etiqueta: `${entrada.etiqueta}${marca} · ${formatearNombre(
         entrada.punto
       )}`,
@@ -488,19 +513,45 @@ function construirFilas(grupo, refs, usuarios) {
   return filas;
 }
 
-function colorDeFila(fila, indice, colorGrupo) {
-  if (fila.esActual) return "#e34948";
-  if (fila.esReferencia) return colorGrupo;
-  const paleta = [
-    colorGrupo,
-    "#2a78d6",
-    "#1baf7a",
-    "#8a5cf6",
-    "#c98a18",
-    "#0f9b8e",
-    "#d4577a",
-  ];
-  return paleta[(indice + 1) % paleta.length];
+function mezclarColor(hexA, hexB, t) {
+  const a = String(hexA).replace("#", "");
+  const b = String(hexB).replace("#", "");
+  const canales = [0, 2, 4].map((offset) => {
+    const ca = parseInt(a.slice(offset, offset + 2), 16);
+    const cb = parseInt(b.slice(offset, offset + 2), 16);
+    return Math.round(ca + (cb - ca) * Math.max(0, Math.min(1, t)));
+  });
+  return (
+    "#" + canales.map((v) => v.toString(16).padStart(2, "0")).join("")
+  );
+}
+
+function colorDeNivel(valor, refs) {
+  const v = Math.max(0.001, Number(valor) || 0);
+  const alta = Number(refs?.alta?.veces);
+  const media = Number(refs?.media?.veces);
+  const baja = Number(refs?.baja?.veces);
+
+  if (!alta || !media || !baja) return COLORES_REFERENCIA.media;
+  if (v >= alta) return "#126b2e"; // más evidente que el verde de referencia
+  if (v >= media) {
+    const t =
+      Math.log(v / media) / Math.max(0.0001, Math.log(alta / media));
+    return mezclarColor(COLORES_REFERENCIA.media, COLORES_REFERENCIA.alta, t);
+  }
+  if (v >= baja) {
+    const t =
+      Math.log(v / baja) / Math.max(0.0001, Math.log(media / baja));
+    return mezclarColor(COLORES_REFERENCIA.baja, COLORES_REFERENCIA.media, t);
+  }
+  return "#9f1f1f"; // más evidente que el rojo de referencia
+}
+
+function colorDeFila(fila, indice, refs) {
+  if (fila.esReferencia) {
+    return COLORES_REFERENCIA[fila.tipo] || COLORES_REFERENCIA.media;
+  }
+  return colorDeNivel(fila.valor, refs);
 }
 
 function nombreLeyenda(fila) {
@@ -515,7 +566,6 @@ function dibujarSeries(grupo, refs, usuarios) {
   const filas = construirFilas(grupo, refs, usuarios);
   if (!filas.length) return;
 
-  const colorGrupo = COLORES[grupo] || "#2a78d6";
   const anios = Array.from(
     { length: DATOS.anio_max - DATOS.anio_min + 1 },
     (_, i) => DATOS.anio_min + i
@@ -532,12 +582,27 @@ function dibujarSeries(grupo, refs, usuarios) {
   const boomLineWidths = [];
 
   filas.forEach((fila, indice) => {
-    const color = colorDeFila(fila, indice, colorGrupo);
+    const color = colorDeFila(fila, indice, refs);
     const serie = Array.isArray(fila.punto.serie) ? fila.punto.serie : [];
     const y = anios.map((_, i) => {
       const valor = Number(serie[i]);
       return Number.isFinite(valor) && valor > 0 ? valor : null;
     });
+
+    // Borde de contraste solo para el nombre actual: una línea gruesa
+    // debajo de los guiones de color.
+    if (fila.esActual) {
+      trazas.push({
+        x: anios,
+        y,
+        mode: "lines",
+        type: "scatter",
+        line: { color: "#0b0b0b", width: 7, dash: "dash" },
+        connectgaps: true,
+        hoverinfo: "skip",
+        showlegend: false,
+      });
+    }
 
     trazas.push({
       x: anios,
@@ -547,10 +612,10 @@ function dibujarSeries(grupo, refs, usuarios) {
       name: nombreLeyenda(fila),
       line: {
         color,
-        width: fila.esActual ? 3.5 : fila.esReferencia ? 1.6 : 2.3,
-        dash: fila.esReferencia && !fila.esActual ? "dot" : "solid",
+        width: fila.esActual ? 3.5 : fila.esReferencia ? 1.8 : 2.3,
+        dash: "dash",
       },
-      opacity: fila.esReferencia && !fila.esActual ? 0.72 : 1,
+      opacity: 1,
       connectgaps: true,
       hovertemplate: `<b>${nombreLeyenda(
         fila
@@ -606,10 +671,10 @@ function dibujarSeries(grupo, refs, usuarios) {
   }
 
   const altura = Math.max(
-    420,
+    460,
     Math.min(
-      620,
-      typeof window !== "undefined" ? window.innerHeight - 360 : 500
+      700,
+      typeof window !== "undefined" ? window.innerHeight - 250 : 600
     )
   );
   const maxY = Math.max(
@@ -664,138 +729,6 @@ function dibujarSeries(grupo, refs, usuarios) {
   };
 
   Plotly.react("comparador-grafico", trazas, layout, {
-    displayModeBar: false,
-    responsive: true,
-    scrollZoom: false,
-  });
-}
-
-function dibujarAlza(grupo, refs, usuarios) {
-  if (typeof Plotly === "undefined") return;
-
-  const filas = construirFilas(grupo, refs, usuarios);
-  if (!filas.length) return;
-
-  const colorGrupo = COLORES[grupo] || "#2a78d6";
-  const xMax = Math.max(
-    8,
-    ...filas.map((f) => Math.max(0.55, Number(f.valor) || 0))
-  ) * 1.8;
-  const xs = filas.map((f) =>
-    Math.max(0.55, Number.isFinite(Number(f.valor)) ? Number(f.valor) : 0)
-  );
-  const texts = filas.map((f) =>
-    Number(f.valor) > 0 ? formatearVeces(f.valor) : "Sin alza"
-  );
-  const etiquetas = filas.map((f) => f.etiqueta);
-  const colores = filas.map((f, i) => colorDeFila(f, i, colorGrupo));
-
-  const lineas = filas.map((f, i) => ({
-    x: [0.5, xs[i]],
-    y: [f.etiqueta, f.etiqueta],
-    mode: "lines",
-    type: "scatter",
-    line: {
-      color: colores[i],
-      width: f.esActual ? 2.5 : 1.5,
-    },
-    hoverinfo: "skip",
-    showlegend: false,
-  }));
-
-  const puntos = {
-    x: xs,
-    y: etiquetas,
-    mode: "markers+text",
-    type: "scatter",
-    text: texts,
-    textposition: "middle right",
-    textfont: { family: "system-ui, sans-serif", size: 11, color: "#0b0b0b" },
-    marker: {
-      size: filas.map((f) => (f.esActual ? 15 : 10)),
-      color: colores,
-      symbol: filas.map((f, i) =>
-        Number(f.valor) < 4 || !!f.punto.sinAlza ? "circle-open" : "circle"
-      ),
-      line: {
-        color: filas.map((f) => (f.esActual ? "#0b0b0b" : "#ffffff")),
-        width: filas.map((f) => (f.esActual ? 2 : 1.5)),
-      },
-    },
-    hoverinfo: "skip",
-    showlegend: false,
-  };
-
-  const altura = Math.max(145, 58 + filas.length * 30);
-  const layout = {
-    height: altura,
-    margin: { t: 40, r: 82, b: 36, l: 230 },
-    paper_bgcolor: "transparent",
-    plot_bgcolor: "transparent",
-    font: { family: "system-ui, sans-serif", color: "#0b0b0b" },
-    showlegend: false,
-    hovermode: false,
-    xaxis: {
-      type: "log",
-      title: { text: "Alza (veces)", font: { size: 11 } },
-      range: [Math.log10(0.5), Math.log10(xMax)],
-      tickvals: [1, 2, 4, 8, 16, 32, 64, 128, 256].filter(
-        (v) => v <= xMax * 1.02
-      ),
-      ticktext: [1, 2, 4, 8, 16, 32, 64, 128, 256]
-        .filter((v) => v <= xMax * 1.02)
-        .map((v) => `${v}x`),
-      gridcolor: "#e1e0d9",
-      zeroline: false,
-      fixedrange: true,
-    },
-    yaxis: {
-      type: "category",
-      categoryorder: "array",
-      categoryarray: etiquetas.slice().reverse(),
-      automargin: true,
-      tickfont: { size: 10.5 },
-      fixedrange: true,
-    },
-    shapes: [
-      {
-        type: "rect",
-        xref: "x",
-        yref: "paper",
-        x0: 0.5,
-        x1: 4,
-        y0: 0,
-        y1: 1,
-        fillcolor: "#f2e7c9",
-        opacity: 0.55,
-        line: { width: 0 },
-        layer: "below",
-      },
-      {
-        type: "line",
-        xref: "x",
-        yref: "paper",
-        x0: 4,
-        x1: 4,
-        y0: 0,
-        y1: 1,
-        line: { color: "#c98a18", width: 1.5, dash: "dot" },
-      },
-    ],
-    annotations: [
-      {
-        xref: "x",
-        yref: "paper",
-        x: Math.sqrt(0.5 * 4),
-        y: 1.04,
-        text: "Alza mínima (<4x)",
-        showarrow: false,
-        font: { size: 10, color: "#8a5a00" },
-      },
-    ],
-  };
-
-  Plotly.react("comparador-alza", [...lineas, puntos], layout, {
     displayModeBar: false,
     responsive: true,
     scrollZoom: false,
