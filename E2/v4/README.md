@@ -28,17 +28,17 @@ computador. Todo se controla desde el micrófono del celular.
 - Si no hay registros o no se puede categorizar, se informa y no se inventa
   un punto.
 
-## Gráficos
+## Gráfico
 
-Dos paneles coordinados con las series anuales reales de cada nombre y un
-marcador en el año del boom de cada uno.
+Un único gráfico de líneas normalizadas con las series anuales reales de cada
+nombre y un marcador en el año del boom de cada uno.
 
-- **Izquierda:** inscripciones por año, con eje Y logarítmico. Conserva el
-  detalle y el volumen absoluto de cada serie.
-- **Derecha:** alza relativa. Cada serie se divide por el promedio de los 3
-  años previos al boom, de modo que `1x` es el nivel previo. Así un alza de
-  10x queda por encima de una de 4x sin importar cuántas inscripciones tenga
-  cada nombre.
+- Cada nombre se normaliza con base 100 en su **primer año con registros**:
+  `índice = inscripciones del año / inscripciones iniciales × 100`.
+- El eje Y es logarítmico, para que un índice de 30.000 no aplaste a los
+  índices cercanos a 100.
+- Una línea tenue marca la base 100.
+- El hover de cada marcador muestra el año, el índice normalizado y el alza.
 
 Estilos:
 
