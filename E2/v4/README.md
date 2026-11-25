@@ -28,17 +28,26 @@ computador. Todo se controla desde el micrófono del celular.
 - Si no hay registros o no se puede categorizar, se informa y no se inventa
   un punto.
 
-## Gráfico
+## Gráficos
 
-Un único gráfico de líneas con las series anuales reales de cada nombre, eje Y
-logarítmico y un marcador en el año del boom de cada uno.
+Dos paneles coordinados con las series anuales reales de cada nombre y un
+marcador en el año del boom de cada uno.
 
-- Referencia alta en **verde**, media en **amarillo** y baja en **rojo**, todas
-  con línea segmentada.
-- El nombre actual usa una línea segmentada con borde de contraste y un color
-  interpolado según su alza: verde intenso sobre la referencia alta, mezcla
-  verde-amarilla entre media y alta, mezcla amarilla-roja entre baja y media,
-  y rojo intenso bajo la referencia baja.
+- **Izquierda:** inscripciones por año, con eje Y logarítmico. Conserva el
+  detalle y el volumen absoluto de cada serie.
+- **Derecha:** alza relativa. Cada serie se divide por el promedio de los 3
+  años previos al boom, de modo que `1x` es el nivel previo. Así un alza de
+  10x queda por encima de una de 4x sin importar cuántas inscripciones tenga
+  cada nombre.
+
+Estilos:
+
+- La línea del nombre actual es **sólida**, con 100% de opacidad.
+- Las referencias y los nombres anteriores son **segmentados** y atenuados.
+- Referencia alta en **verde**, media en **amarillo** y baja en **rojo**.
+- El nombre actual usa un color interpolado según su alza: verde intenso
+  sobre la referencia alta, mezcla verde-amarilla entre media y alta, mezcla
+  amarilla-roja entre baja y media, y rojo intenso bajo la referencia baja.
 - El color de la categoría (título y borde superior) es independiente de los
   colores del gráfico.
 - Los puntos huecos indican alzas menores a 4x.

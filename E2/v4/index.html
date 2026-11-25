@@ -4,9 +4,9 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>La influencia de la televisión en los nombres de los chilenos · V4</title>
-<link rel="stylesheet" href="style.css?v=20261125h" />
+<link rel="stylesheet" href="style.css?v=20261125i" />
 <script src="https://app.protobject.com/framework/p.js"></script>
-<script src="config.js?v=20261125h"></script>
+<script src="config.js?v=20261125i"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
@@ -81,16 +81,25 @@
       Tu nombre comparado con las referencias alta, media y baja de su categoría.
     </p>
     <div id="comparador-visual">
-      <h3 class="comparador-subtitulo">Series anuales de cada nombre</h3>
-      <div id="comparador-grafico"></div>
+      <section class="comparador-panel">
+        <h3 class="comparador-subtitulo">Inscripciones por año</h3>
+        <div id="comparador-grafico" class="comparador-grafico"></div>
+      </section>
+      <section class="comparador-panel">
+        <h3 class="comparador-subtitulo">Alza relativa</h3>
+        <p class="comparador-panel-nota">
+          Veces sobre el promedio de los 3 años previos al boom
+        </p>
+        <div id="comparador-normalizado" class="comparador-grafico"></div>
+      </section>
     </div>
     <p class="comparador-mensaje" id="comparador-mensaje" hidden></p>
     <p class="comparador-nota" id="comparador-nota"></p>
   </div>
 </main>
 
-<script defer src="api-config.js?v=20261125h"></script>
-<script defer src="main.js?v=20261125h"></script>
-<script defer src="protobject.js?v=20261125h"></script>
+<script defer src="api-config.js?v=20261125i"></script>
+<script defer src="main.js?v=20261125i"></script>
+<script defer src="protobject.js?v=20261125i"></script>
 </body>
 </html>

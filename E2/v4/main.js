@@ -176,17 +176,24 @@ window.actualizarEstadoV4 = function (estado, texto) {
 
 function construirPuntosCurados() {
   return DATOS.booms
-    .map((b) => ({
-      nombre: b.nombre,
-      anio: Number(b.anio),
-      veces: Number(b.veces),
-      n: Number(b.n),
-      extra: Number(b.extra),
-      categoria: b.categoria,
-      grupo: grupoDeCategoria(b.categoria),
-      serie: b.serie,
-      real: true,
-    }))
+    .map((b) => {
+      const n = Number(b.n);
+      const veces = Number(b.veces);
+      const prev =
+        Number(b.prev) || (veces > 0 && n > 0 ? n / veces : 0);
+      return {
+        nombre: b.nombre,
+        anio: Number(b.anio),
+        veces,
+        n,
+        prev,
+        extra: Number(b.extra),
+        categoria: b.categoria,
+        grupo: grupoDeCategoria(b.categoria),
+        serie: b.serie,
+        real: true,
+      };
+    })
     .filter((p) => p.grupo && ORDEN_CATEGORIAS.includes(p.grupo));
 }
 
@@ -416,6 +423,7 @@ function mostrarMensaje(titulo, texto) {
   document.getElementById("comparador-categoria").textContent = titulo;
   document.getElementById("comparador-descripcion").textContent = "";
   document.getElementById("comparador-grafico").innerHTML = "";
+  document.getElementById("comparador-normalizado").innerHTML = "";
   mostrarVisualComparador(false);
   const mensaje = document.getElementById("comparador-mensaje");
   mensaje.hidden = false;
@@ -454,9 +462,10 @@ function mostrarComparador(grupo) {
     ? " La categoría de tu nombre es una estimación IA."
     : "";
   nota.textContent =
-    "Verde: referencia alta · amarillo: media · rojo: baja. La línea con " +
-    "borde es tu nombre; los puntos huecos son alzas menores a 4x. Tus " +
-    "nombres se agregan a medida que los dices." +
+    "Verde: referencia alta · amarillo: media · rojo: baja. La línea sólida " +
+    "es tu nombre; el resto queda atenuado. Los puntos huecos son alzas " +
+    "menores a 4x. En el gráfico de alza, 1x equivale al promedio de los 3 " +
+    "años previos al boom, así las alzas se comparan sin importar el volumen." +
     estimada;
 
   dibujarSeries(grupo, refs, usuarios);
@@ -560,49 +569,135 @@ function nombreLeyenda(fila) {
     .replace(" · Dicho", "");
 }
 
-function dibujarSeries(grupo, refs, usuarios) {
-  if (typeof Plotly === "undefined") return;
+function baseDePunto(punto) {
+  const prev = Number(punto?.prev);
+  if (Number.isFinite(prev) && prev > 0) return prev;
 
-  const filas = construirFilas(grupo, refs, usuarios);
-  if (!filas.length) return;
-
-  const anios = Array.from(
-    { length: DATOS.anio_max - DATOS.anio_min + 1 },
-    (_, i) => DATOS.anio_min + i
-  );
-
-  const trazas = [];
-  const boomX = [];
-  const boomY = [];
-  const boomText = [];
-  const boomColors = [];
-  const boomSizes = [];
-  const boomSymbols = [];
-  const boomLineColors = [];
-  const boomLineWidths = [];
-
-  filas.forEach((fila, indice) => {
-    const color = colorDeFila(fila, indice, refs);
-    const serie = Array.isArray(fila.punto.serie) ? fila.punto.serie : [];
-    const y = anios.map((_, i) => {
-      const valor = Number(serie[i]);
-      return Number.isFinite(valor) && valor > 0 ? valor : null;
-    });
-
-    // Borde de contraste solo para el nombre actual: una línea gruesa
-    // debajo de los guiones de color.
-    if (fila.esActual) {
-      trazas.push({
-        x: anios,
-        y,
-        mode: "lines",
-        type: "scatter",
-        line: { color: "#0b0b0b", width: 7, dash: "dash" },
-        connectgaps: true,
-        hoverinfo: "skip",
-        showlegend: false,
-      });
+  // Si el punto no trae la base explícita, se recalcula con la misma regla
+  // del alza: promedio de los 3 años anteriores al boom.
+  const serie = Array.isArray(punto?.serie) ? punto.serie : [];
+  const anio = Number(punto?.anio);
+  const indice = anio - Number(DATOS?.anio_min);
+  if (Number.isInteger(indice) && indice >= 3) {
+    const previos = [
+      serie[indice - 1],
+      serie[indice - 2],
+      serie[indice - 3],
+    ].map(Number);
+    if (previos.every((v) => Number.isFinite(v) && v >= 0)) {
+      const promedio = previos.reduce((a, b) => a + b, 0) / 3;
+      if (promedio > 0) return promedio;
     }
+  }
+
+  const n = Number(punto?.n);
+  const veces = Number(punto?.veces);
+  if (Number.isFinite(n) && Number.isFinite(veces) && n > 0 && veces > 0) {
+    return n / veces;
+  }
+  return null;
+}
+
+function opacidadDeFila(fila) {
+  if (fila.esActual) return 1;
+  return fila.esReferencia ? 0.55 : 0.4;
+}
+
+function anchoDeFila(fila) {
+  if (fila.esActual) return 3.6;
+  return fila.esReferencia ? 1.8 : 2.2;
+}
+
+function yDeFila(fila, anios, normalizado) {
+  const serie = Array.isArray(fila.punto.serie) ? fila.punto.serie : [];
+  const base = normalizado ? baseDePunto(fila.punto) : null;
+  if (normalizado && !base) return null;
+
+  return anios.map((_, i) => {
+    const valor = Number(serie[i]);
+    if (!Number.isFinite(valor) || valor <= 0) return null;
+    return normalizado ? valor / base : valor;
+  });
+}
+
+function etiquetaMultiplo(valor) {
+  const n = Number(valor);
+  let texto;
+  if (n >= 1) {
+    texto = Number.isInteger(n) ? String(n) : n.toFixed(1);
+  } else {
+    texto = n.toFixed(2);
+  }
+  return texto.replace(".", ",") + "x";
+}
+
+function agregarMarcadores(trazas, datos, esActual) {
+  if (!datos.x.length) return;
+
+  trazas.push({
+    x: datos.x,
+    y: datos.y,
+    mode: "markers+text",
+    type: "scatter",
+    text: datos.text,
+    textposition: "top center",
+    textfont: {
+      family: "system-ui, sans-serif",
+      size: esActual ? 11.5 : 10.5,
+      color: esActual ? "#0b0b0b" : "rgba(11, 11, 11, 0.58)",
+    },
+    marker: {
+      size: datos.size,
+      color: datos.color,
+      symbol: datos.symbol,
+      line: { color: "#ffffff", width: esActual ? 2.2 : 1.4 },
+    },
+    opacity: esActual ? 1 : 0.62,
+    hoverinfo: "skip",
+    showlegend: false,
+  });
+}
+
+function construirTrazas(filas, refs, anios, normalizado) {
+  const trazas = [];
+  const marcadoresOtros = {
+    x: [],
+    y: [],
+    text: [],
+    color: [],
+    size: [],
+    symbol: [],
+  };
+  const marcadoresActual = {
+    x: [],
+    y: [],
+    text: [],
+    color: [],
+    size: [],
+    symbol: [],
+  };
+
+  // Las demás líneas primero y la del nombre actual al final, para que
+  // siempre quede por encima.
+  const orden = [
+    ...filas.filter((fila) => !fila.esActual),
+    ...filas.filter((fila) => fila.esActual),
+  ];
+
+  for (const fila of orden) {
+    const color = colorDeFila(fila, 0, refs);
+    const y = yDeFila(fila, anios, normalizado);
+    if (!y) continue;
+
+    const actual = !!fila.esActual;
+    const serie = Array.isArray(fila.punto.serie) ? fila.punto.serie : [];
+    const hover = normalizado
+      ? `<b>${nombreLeyenda(
+          fila
+        )}</b><br>%{x}: %{y:.2~f}x sobre el nivel previo<extra></extra>`
+      : `<b>${nombreLeyenda(
+          fila
+        )}</b><br>%{x}: %{y} inscripciones<extra></extra>`;
 
     trazas.push({
       x: anios,
@@ -612,14 +707,12 @@ function dibujarSeries(grupo, refs, usuarios) {
       name: nombreLeyenda(fila),
       line: {
         color,
-        width: fila.esActual ? 3.5 : fila.esReferencia ? 1.8 : 2.3,
-        dash: "dash",
+        width: anchoDeFila(fila),
+        dash: actual ? "solid" : "dash",
       },
-      opacity: 1,
+      opacity: opacidadDeFila(fila),
       connectgaps: true,
-      hovertemplate: `<b>${nombreLeyenda(
-        fila
-      )}</b><br>%{x}: %{y} inscripciones<extra></extra>`,
+      hovertemplate: hover,
       showlegend: true,
     });
 
@@ -630,83 +723,100 @@ function dibujarSeries(grupo, refs, usuarios) {
     }
     if (!Number.isFinite(yBoom) || yBoom <= 0) {
       const maximo = Math.max(...serie);
-      if (maximo > 0) {
-        yBoom = maximo;
-      }
+      if (maximo > 0) yBoom = maximo;
     }
-    if (!Number.isFinite(yBoom) || yBoom <= 0) return;
+    if (!Number.isFinite(yBoom) || yBoom <= 0) continue;
 
-    boomX.push(anio);
-    boomY.push(yBoom);
-    boomText.push(
+    if (normalizado) {
+      const base = baseDePunto(fila.punto);
+      if (!base) continue;
+      yBoom = yBoom / base;
+    }
+
+    const minimo = !!fila.punto.sinAlza || Number(fila.valor) < 4;
+    const bucket = actual ? marcadoresActual : marcadoresOtros;
+    bucket.x.push(anio);
+    bucket.y.push(yBoom);
+    bucket.text.push(
       Number(fila.valor) > 0 ? formatearVeces(fila.valor) : "Sin alza"
     );
-    boomColors.push(color);
-    boomSizes.push(fila.esActual ? 14 : 10);
-    const minima =
-      !!fila.punto.sinAlza || Number(fila.valor) < 4;
-    boomSymbols.push(minima ? "circle-open" : "circle");
-    boomLineColors.push(fila.esActual ? "#0b0b0b" : "#ffffff");
-    boomLineWidths.push(fila.esActual ? 2 : 1.5);
-  });
-
-  if (boomX.length) {
-    trazas.push({
-      x: boomX,
-      y: boomY,
-      mode: "markers+text",
-      type: "scatter",
-      text: boomText,
-      textposition: "top center",
-      textfont: { family: "system-ui, sans-serif", size: 11, color: "#0b0b0b" },
-      marker: {
-        size: boomSizes,
-        color: boomColors,
-        symbol: boomSymbols,
-        line: { color: boomLineColors, width: boomLineWidths },
-      },
-      hovertemplate: "<b>%{text}</b><br>%{x}<extra></extra>",
-      showlegend: false,
-    });
+    bucket.color.push(color);
+    bucket.size.push(actual ? 14 : 10);
+    bucket.symbol.push(minimo ? "circle-open" : "circle");
   }
 
-  const altura = Math.max(
-    460,
+  agregarMarcadores(trazas, marcadoresOtros, false);
+  agregarMarcadores(trazas, marcadoresActual, true);
+  return trazas;
+}
+
+function alturaComparador() {
+  return Math.max(
+    440,
     Math.min(
-      700,
-      typeof window !== "undefined" ? window.innerHeight - 250 : 600
+      620,
+      typeof window !== "undefined" ? window.innerHeight - 300 : 560
     )
   );
-  const maxY = Math.max(
-    1,
-    ...filas.flatMap((f) =>
-      (Array.isArray(f.punto.serie) ? f.punto.serie : []).map(Number)
-    )
-  );
-  const yTicks = [1, 10, 100, 1000, 10000, 100000].filter(
-    (v) => v <= maxY * 1.15
-  );
+}
+
+function layoutComparador(altura, normalizado, filas) {
+  let yTicks;
+  let yTitle;
+
+  if (normalizado) {
+    const valores = [];
+    for (const fila of filas) {
+      const base = baseDePunto(fila.punto);
+      if (!base) continue;
+      const serie = Array.isArray(fila.punto.serie) ? fila.punto.serie : [];
+      for (const valor of serie) {
+        const n = Number(valor);
+        if (Number.isFinite(n) && n > 0) valores.push(n / base);
+      }
+    }
+    const maximo = Math.max(2, ...valores);
+    const minimo = Math.min(1, ...valores);
+    const candidatos = [0.01, 0.1, 0.5, 1, 2, 4, 16, 64, 256, 1024];
+    yTicks = candidatos.filter(
+      (v) => v >= Math.max(0.01, minimo * 0.8) && v <= maximo * 1.25
+    );
+    if (!yTicks.includes(1)) yTicks.push(1);
+    yTicks.sort((a, b) => a - b);
+    yTitle = "Veces sobre el nivel previo (log)";
+  } else {
+    const maxY = Math.max(
+      1,
+      ...filas.flatMap((f) =>
+        (Array.isArray(f.punto.serie) ? f.punto.serie : []).map(Number)
+      )
+    );
+    yTicks = [1, 10, 100, 1000, 10000, 100000].filter(
+      (v) => v <= maxY * 1.15
+    );
+    yTitle = "Inscripciones (escala log)";
+  }
 
   const layout = {
     height: altura,
-    margin: { t: 96, r: 30, b: 52, l: 72 },
+    margin: { t: 88, r: 28, b: 52, l: 72 },
     paper_bgcolor: "transparent",
     plot_bgcolor: "transparent",
     font: { family: "system-ui, sans-serif", color: "#0b0b0b" },
     legend: {
       orientation: "h",
       x: 0,
-      y: 1.16,
+      y: 1.14,
       xanchor: "left",
       yanchor: "top",
-      font: { size: 10.5 },
+      font: { size: 10 },
       itemclick: false,
       itemdoubleclick: false,
       bgcolor: "rgba(255,255,255,0.75)",
     },
     hovermode: "x unified",
     xaxis: {
-      title: { text: "Año", font: { size: 12 } },
+      title: { text: "Año", font: { size: 11.5 } },
       range: [DATOS.anio_min - 1, DATOS.anio_max + 1],
       tickvals: [1920, 1940, 1960, 1980, 2000, 2020],
       ticktext: ["1920", "1940", "1960", "1980", "2000", "2020"],
@@ -716,11 +826,13 @@ function dibujarSeries(grupo, refs, usuarios) {
     },
     yaxis: {
       type: "log",
-      title: { text: "Inscripciones (escala log)", font: { size: 12 } },
+      title: { text: yTitle, font: { size: 11.5 } },
       tickvals: yTicks,
-      ticktext: yTicks.map((v) =>
-        v >= 1000 ? v.toLocaleString("es-CL") : String(v)
-      ),
+      ticktext: normalizado
+        ? yTicks.map(etiquetaMultiplo)
+        : yTicks.map((v) =>
+            v >= 1000 ? v.toLocaleString("es-CL") : String(v)
+          ),
       gridcolor: "#e1e0d9",
       zeroline: false,
       fixedrange: true,
@@ -728,11 +840,52 @@ function dibujarSeries(grupo, refs, usuarios) {
     },
   };
 
-  Plotly.react("comparador-grafico", trazas, layout, {
-    displayModeBar: false,
-    responsive: true,
-    scrollZoom: false,
-  });
+  if (normalizado) {
+    layout.shapes = [
+      {
+        type: "line",
+        xref: "paper",
+        x0: 0,
+        x1: 1,
+        yref: "y",
+        y0: 1,
+        y1: 1,
+        line: { color: "#c3c2b7", width: 1, dash: "dot" },
+      },
+    ];
+  }
+
+  return layout;
+}
+
+function dibujarSeries(grupo, refs, usuarios) {
+  if (typeof Plotly === "undefined") return;
+
+  const filas = construirFilas(grupo, refs, usuarios);
+  if (!filas.length) return;
+
+  const anios = Array.from(
+    { length: DATOS.anio_max - DATOS.anio_min + 1 },
+    (_, i) => DATOS.anio_min + i
+  );
+  const altura = alturaComparador();
+
+  const trazas = construirTrazas(filas, refs, anios, false);
+  const trazasNormalizadas = construirTrazas(filas, refs, anios, true);
+
+  Plotly.react(
+    "comparador-grafico",
+    trazas,
+    layoutComparador(altura, false, filas),
+    { displayModeBar: false, responsive: true, scrollZoom: false }
+  );
+
+  Plotly.react(
+    "comparador-normalizado",
+    trazasNormalizadas,
+    layoutComparador(altura, true, filas),
+    { displayModeBar: false, responsive: true, scrollZoom: false }
+  );
 }
 
 // ---------- Flujo de voz ----------
