@@ -30,29 +30,27 @@ computador. Todo se controla desde el micrófono del celular.
 
 ## Gráfico
 
-Un único gráfico de líneas normalizadas con las series anuales reales de cada
-nombre y un marcador en el año del boom de cada uno.
+Un único **lollipop ordenado por alza**, con una fila por nombre.
 
-- Cada nombre se normaliza con base 100 en su **primer año con registros**:
-  `índice = inscripciones del año / inscripciones iniciales × 100`.
-- El eje Y es logarítmico, para que un índice de 30.000 no aplaste a los
-  índices cercanos a 100.
-- Una línea tenue marca la base 100.
-- El hover de cada marcador muestra el año, el índice normalizado y el alza.
-
-Estilos:
-
-- La línea del nombre actual es **sólida**, con 100% de opacidad.
-- Las referencias y los nombres anteriores son **segmentados** y atenuados.
+- La fila superior es el mayor boom.
+- El eje X es logarítmico: cada fila sale de `1x` y termina en el alza del
+  nombre.
+- El punto del extremo marca el alza; la etiqueta izquierda muestra el nombre,
+  el año y las inscripciones en el año del boom.
+- El hover muestra año, alza, inscripciones previas, inscripciones del boom y
+  aumento absoluto.
 - Referencia alta en **verde**, media en **amarillo** y baja en **rojo**.
 - El nombre actual usa un color interpolado según su alza: verde intenso
   sobre la referencia alta, mezcla verde-amarilla entre media y alta, mezcla
   amarilla-roja entre baja y media, y rojo intenso bajo la referencia baja.
+- La fila del nombre actual queda resaltada con barra más gruesa, punto más
+  grande y 100% de opacidad; las demás quedan atenuadas.
 - El color de la categoría (título y borde superior) es independiente de los
   colores del gráfico.
-- Los puntos huecos indican alzas menores a 4x.
+- Los puntos huecos indican alzas menores a 4x. Una línea tenue marca el
+  umbral de 4x.
 
-Las líneas y los puntos usan solo series reales; no se inventan valores.
+Los puntos y las barras usan solo datos reales; no se inventan valores.
 
 ## Datos
 

@@ -91,8 +91,21 @@ function formatearVeces(valor) {
   return n.toFixed(1).replace(".", ",") + "x";
 }
 
+function formatearAlzaCorta(valor) {
+  const n = Number(valor);
+  if (!Number.isFinite(n) || n <= 0) return "Sin alza";
+  const texto = Number.isInteger(n) ? String(n) : n.toFixed(1).replace(".", ",");
+  return texto + "x";
+}
+
 function formatearNombre(p) {
   return `${p.nombre} (${p.anio})`;
+}
+
+function formatearNumero(valor) {
+  const n = Number(valor);
+  if (!Number.isFinite(n)) return "—";
+  return n.toLocaleString("es-CL", { maximumFractionDigits: 0 });
 }
 
 function estadoV4(texto) {
@@ -460,11 +473,18 @@ function mostrarComparador(grupo) {
   const estimada = actual?.categoriaEstimada
     ? " La categoría de tu nombre es una estimación IA."
     : "";
+  const sinAlza = usuarios
+    .filter((p) => !(Number(p.veces) > 0))
+    .map(formatearNombre);
+  const extraSinAlza = sinAlza.length
+    ? ` Sin alza: ${sinAlza.join(", ")}.`
+    : "";
   nota.textContent =
-    "Verde: referencia alta · amarillo: media · rojo: baja. La línea sólida " +
-    "es tu nombre; el resto queda atenuado. Cada línea vale 100 en su primer " +
-    "año con registros; la escala logarítmica permite comparar índices muy " +
-    "distintos. Los puntos huecos son alzas menores a 4x." +
+    "Verde: referencia alta · amarillo: media · rojo: baja. La fila superior " +
+    "es el mayor boom; el punto derecho marca el alza y la etiqueta izquierda " +
+    "muestra las inscripciones en el año del boom. El nombre actual está " +
+    "resaltado; los puntos huecos son alzas menores a 4x." +
+    extraSinAlza +
     estimada;
 
   dibujarSeries(grupo, refs, usuarios);
@@ -568,13 +588,9 @@ function nombreLeyenda(fila) {
     .replace(" · Dicho", "");
 }
 
-function baseInicialDePunto(punto) {
-  const serie = Array.isArray(punto?.serie) ? punto.serie : [];
-  for (const valor of serie) {
-    const n = Number(valor);
-    if (Number.isFinite(n) && n > 0) return n;
-  }
-  return null;
+function etiquetaEje(fila) {
+  const nombre = formatearNombre(fila.punto);
+  return fila.esActual ? `${nombre} · actual` : nombre;
 }
 
 function opacidadDeFila(fila) {
@@ -583,34 +599,25 @@ function opacidadDeFila(fila) {
 }
 
 function anchoDeFila(fila) {
-  if (fila.esActual) return 3.6;
-  return fila.esReferencia ? 1.8 : 2.2;
+  if (fila.esActual) return 5;
+  return 3;
 }
 
-function yNormalizada(fila, anios) {
-  const serie = Array.isArray(fila.punto.serie) ? fila.punto.serie : [];
-  const base = baseInicialDePunto(fila.punto);
-  if (!base) return null;
-
-  return anios.map((_, i) => {
-    const valor = Number(serie[i]);
-    if (!Number.isFinite(valor) || valor <= 0) return null;
-    return (valor / base) * 100;
-  });
-}
-
-function etiquetaIndice(valor) {
-  return Number(valor).toLocaleString("es-CL");
-}
-
-function agregarMarcadores(trazas, datos, esActual) {
+function agregarMarcadoresLollipop(trazas, datos, esActual) {
   if (!datos.x.length) return;
 
   trazas.push({
     x: datos.x,
     y: datos.y,
-    mode: "markers",
+    mode: "markers+text",
     type: "scatter",
+    text: datos.text,
+    textposition: "top center",
+    textfont: {
+      family: "system-ui, sans-serif",
+      size: esActual ? 12.5 : 11,
+      color: esActual ? "#0b0b0b" : "rgba(11, 11, 11, 0.62)",
+    },
     customdata: datos.customdata,
     marker: {
       size: datos.size,
@@ -618,19 +625,22 @@ function agregarMarcadores(trazas, datos, esActual) {
       symbol: datos.symbol,
       line: { color: "#ffffff", width: esActual ? 2.2 : 1.4 },
     },
-    opacity: esActual ? 1 : 0.62,
+    opacity: esActual ? 1 : 0.68,
     hovertemplate:
-      "<b>%{customdata[0]}</b><br>%{x}: índice %{y:,.0f}" +
-      "<br>Alza: %{customdata[1]}<extra></extra>",
+      "<b>%{customdata[0]}</b><br>Año del boom: %{customdata[1]}" +
+      "<br>Alza: %{x:.2~f}x<br>Inscripciones en el boom: %{customdata[2]}" +
+      "<br>Promedio previo: %{customdata[3]}" +
+      "<br>Aumento absoluto: %{customdata[4]}<extra></extra>",
     showlegend: false,
   });
 }
 
-function construirTrazas(filas, refs, anios) {
+function construirTrazasLollipop(filas, refs) {
   const trazas = [];
   const marcadoresOtros = {
     x: [],
     y: [],
+    text: [],
     customdata: [],
     color: [],
     size: [],
@@ -639,202 +649,187 @@ function construirTrazas(filas, refs, anios) {
   const marcadoresActual = {
     x: [],
     y: [],
+    text: [],
     customdata: [],
     color: [],
     size: [],
     symbol: [],
   };
 
-  // Las demás líneas primero y la del nombre actual al final, para que
-  // siempre quede por encima.
   const orden = [
     ...filas.filter((fila) => !fila.esActual),
     ...filas.filter((fila) => fila.esActual),
   ];
 
   for (const fila of orden) {
-    const color = colorDeFila(fila, 0, refs);
-    const y = yNormalizada(fila, anios);
-    if (!y) continue;
+    const alza = Number(fila.valor);
+    if (!Number.isFinite(alza) || alza <= 0) continue;
 
     const actual = !!fila.esActual;
-    const serie = Array.isArray(fila.punto.serie) ? fila.punto.serie : [];
+    const color = colorDeFila(fila, 0, refs);
+    const etiqueta = etiquetaEje(fila);
+    const prev = Number(fila.punto.prev);
+    const n = Number(fila.punto.n);
+    const extra = Number(fila.punto.extra);
+    const alzaSegura = Math.max(1.0001, alza);
 
     trazas.push({
-      x: anios,
-      y,
+      x: [1, alzaSegura],
+      y: [etiqueta, etiqueta],
       mode: "lines",
       type: "scatter",
-      name: nombreLeyenda(fila),
       line: {
         color,
         width: anchoDeFila(fila),
-        dash: actual ? "solid" : "dash",
       },
       opacity: opacidadDeFila(fila),
-      connectgaps: true,
-      hovertemplate: `<b>${nombreLeyenda(
-        fila
-      )}</b><br>%{x}: índice %{y:,.0f}<extra></extra>`,
-      showlegend: true,
+      hoverinfo: "skip",
+      showlegend: false,
     });
 
-    const anio = Number(fila.punto.anio);
-    let yBoom = Number(fila.punto.n);
-    if (!Number.isFinite(yBoom) || yBoom <= 0) {
-      yBoom = Number(serie[anio - DATOS.anio_min]);
-    }
-    if (!Number.isFinite(yBoom) || yBoom <= 0) {
-      const maximo = Math.max(...serie);
-      if (maximo > 0) yBoom = maximo;
-    }
-    if (!Number.isFinite(yBoom) || yBoom <= 0) continue;
-
-    const base = baseInicialDePunto(fila.punto);
-    if (!base) continue;
-
-    const minimo = !!fila.punto.sinAlza || Number(fila.valor) < 4;
     const bucket = actual ? marcadoresActual : marcadoresOtros;
-    bucket.x.push(anio);
-    bucket.y.push((yBoom / base) * 100);
+    bucket.x.push(alzaSegura);
+    bucket.y.push(etiqueta);
+    bucket.text.push(formatearAlzaCorta(alza));
     bucket.customdata.push([
-      nombreLeyenda(fila),
-      Number(fila.valor) > 0 ? formatearVeces(fila.valor) : "Sin alza",
+      formatearNombre(fila.punto),
+      fila.punto.anio,
+      Number.isFinite(n) && n > 0 ? formatearNumero(n) : "Sin dato",
+      Number.isFinite(prev) && prev > 0 ? formatearNumero(prev) : "Sin dato",
+      Number.isFinite(extra) && extra > 0 ? formatearNumero(extra) : "Sin dato",
     ]);
     bucket.color.push(color);
-    bucket.size.push(actual ? 14 : 10);
-    bucket.symbol.push(minimo ? "circle-open" : "circle");
+    bucket.size.push(actual ? 13 : 9);
+    bucket.symbol.push(alza < 4 ? "circle-open" : "circle");
   }
 
-  agregarMarcadores(trazas, marcadoresOtros, false);
-  agregarMarcadores(trazas, marcadoresActual, true);
+  agregarMarcadoresLollipop(trazas, marcadoresOtros, false);
+  agregarMarcadoresLollipop(trazas, marcadoresActual, true);
   return trazas;
 }
 
-function alturaComparador() {
-  return Math.max(
-    460,
-    Math.min(
-      640,
-      typeof window !== "undefined" ? window.innerHeight - 300 : 580
-    )
-  );
+function alturaLollipop(cantidad) {
+  return Math.max(500, Math.min(1100, 150 + cantidad * 95));
 }
 
-function layoutComparador(filas) {
-  const valores = [];
-  for (const fila of filas) {
-    const y = yNormalizada(
-      fila,
-      Array.from(
-        { length: DATOS.anio_max - DATOS.anio_min + 1 },
-        (_, i) => DATOS.anio_min + i
-      )
-    );
-    if (!y) continue;
-    for (const valor of y) {
-      if (Number.isFinite(valor) && valor > 0) valores.push(valor);
-    }
+function layoutLollipop(filas, refs) {
+  const etiquetas = filas.map(etiquetaEje);
+  const ticktext = filas.map((fila) => {
+    const nombre = formatearNombre(fila.punto);
+    const nombreHtml = fila.esActual ? `<b>${nombre}</b>` : nombre;
+    const n = Number(fila.punto.n);
+    return `${nombreHtml}<br>${n > 0 ? formatearNumero(n) : "—"} inscr.`;
+  });
+
+  const esAngosto =
+    typeof window !== "undefined" && window.innerWidth < 720;
+  const maxAlza = Math.max(
+    1.1,
+    ...filas.map((fila) => Number(fila.valor)).filter((v) => Number.isFinite(v))
+  );
+  const baseTicks = esAngosto
+    ? [1, 4, 16, 64, 256]
+    : [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024];
+  const ticks = baseTicks.filter((v) => v <= maxAlza * 1.5);
+  const shapes = [];
+  const filasCount = filas.length;
+
+  filas.forEach((fila, indice) => {
+    if (!fila.esActual) return;
+    shapes.push({
+      type: "rect",
+      xref: "paper",
+      x0: 0,
+      x1: 1,
+      yref: "paper",
+      y0: 1 - (indice + 1) / filasCount,
+      y1: 1 - indice / filasCount,
+      fillcolor: colorDeFila(fila, 0, refs),
+      opacity: 0.06,
+      line: { width: 0 },
+      layer: "below",
+    });
+  });
+
+  if (maxAlza >= 4) {
+    shapes.push({
+      type: "line",
+      xref: "x",
+      x0: 4,
+      x1: 4,
+      yref: "paper",
+      y0: 0,
+      y1: 1,
+      line: { color: "#c3c2b7", width: 1, dash: "dot" },
+      layer: "below",
+    });
   }
 
-  const maximo = Math.max(100, ...valores);
-  const minimo = Math.min(100, ...valores);
-  const candidatos = [
-    0.01, 0.1, 1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000,
-  ];
-  const yTicks = candidatos.filter(
-    (v) => v >= Math.max(1, minimo * 0.8) && v <= maximo * 1.25
-  );
-  if (!yTicks.includes(100)) yTicks.push(100);
-  yTicks.sort((a, b) => a - b);
-
   return {
-    height: alturaComparador(),
-    margin: { t: 88, r: 30, b: 52, l: 82 },
+    height: alturaLollipop(filas.length),
+    margin: {
+      t: 42,
+      r: esAngosto ? 48 : 112,
+      b: 54,
+      l: esAngosto ? 145 : 250,
+    },
     paper_bgcolor: "transparent",
     plot_bgcolor: "transparent",
     font: { family: "system-ui, sans-serif", color: "#0b0b0b" },
-    legend: {
-      orientation: "h",
-      x: 0,
-      y: 1.14,
-      xanchor: "left",
-      yanchor: "top",
-      font: { size: 10 },
-      itemclick: false,
-      itemdoubleclick: false,
-      bgcolor: "rgba(255,255,255,0.75)",
-    },
-    hovermode: "x unified",
+    showlegend: false,
+    hovermode: "closest",
     xaxis: {
-      title: { text: "Año", font: { size: 11.5 } },
-      range: [DATOS.anio_min - 1, DATOS.anio_max + 1],
-      tickvals: [1920, 1940, 1960, 1980, 2000, 2020],
-      ticktext: ["1920", "1940", "1960", "1980", "2000", "2020"],
-      gridcolor: "#e1e0d9",
-      zeroline: false,
-      fixedrange: true,
-    },
-    yaxis: {
       type: "log",
-      title: { text: "Índice (primer año = 100)", font: { size: 11.5 } },
-      range: [
-        Math.log10(Math.max(0.01, minimo * 0.8)),
-        Math.log10(Math.max(1, maximo * 1.25)),
-      ],
-      tickvals: yTicks,
-      ticktext: yTicks.map(etiquetaIndice),
+      range: [0, Math.log10(maxAlza * (esAngosto ? 1.8 : 1.45))],
+      title: {
+        text: "Alza (veces, escala log)",
+        font: { size: esAngosto ? 10.5 : 11.5 },
+      },
+      tickvals: ticks,
+      ticktext: ticks.map((v) => `${v}x`),
+      tickfont: { size: esAngosto ? 9 : 11 },
       gridcolor: "#e1e0d9",
       zeroline: false,
       fixedrange: true,
       automargin: true,
     },
-    shapes: [
-      {
-        type: "line",
-        xref: "paper",
-        x0: 0,
-        x1: 1,
-        yref: "y",
-        y0: 100,
-        y1: 100,
-        line: { color: "#c3c2b7", width: 1, dash: "dot" },
-      },
-    ],
-    annotations: [
-      {
-        xref: "paper",
-        x: 0,
-        yref: "y",
-        y: 100,
-        text: "Base 100",
-        showarrow: false,
-        xanchor: "left",
-        yanchor: "bottom",
-        font: { size: 9, color: "#898781" },
-      },
-    ],
+    yaxis: {
+      type: "category",
+      categoryorder: "array",
+      categoryarray: etiquetas.slice().reverse(),
+      tickmode: "array",
+      tickvals: etiquetas,
+      ticktext,
+      automargin: true,
+      tickfont: { size: esAngosto ? 10.5 : 11 },
+      fixedrange: true,
+      showgrid: false,
+    },
+    shapes,
   };
 }
 
 function dibujarSeries(grupo, refs, usuarios) {
   if (typeof Plotly === "undefined") return;
 
-  const filas = construirFilas(grupo, refs, usuarios);
+  const filas = construirFilas(grupo, refs, usuarios)
+    .filter((fila) => Number(fila.valor) > 0)
+    .sort(
+      (a, b) =>
+        Number(b.valor) - Number(a.valor) ||
+        Number(b.esActual) - Number(a.esActual)
+    );
   if (!filas.length) return;
 
-  const anios = Array.from(
-    { length: DATOS.anio_max - DATOS.anio_min + 1 },
-    (_, i) => DATOS.anio_min + i
-  );
-  const trazas = construirTrazas(filas, refs, anios);
+  const trazas = construirTrazasLollipop(filas, refs);
   if (!trazas.length) return;
 
-  Plotly.react("comparador-grafico", trazas, layoutComparador(filas), {
-    displayModeBar: false,
-    responsive: true,
-    scrollZoom: false,
-  });
+  Plotly.react(
+    "comparador-grafico",
+    trazas,
+    layoutLollipop(filas, refs),
+    { displayModeBar: false, responsive: true, scrollZoom: false }
+  );
 }
 
 // ---------- Flujo de voz ----------
