@@ -375,13 +375,18 @@ function abrirComparador() {
   window.scrollTo({ top: 0, behavior: "auto" });
 }
 
+function mostrarVisualComparador(visible) {
+  const visual = document.getElementById("comparador-visual");
+  if (visual) visual.hidden = !visible;
+}
+
 function mostrarCargando(nombre) {
   abrirComparador();
   document.getElementById("comparador-categoria").textContent = "Buscando…";
   document.getElementById(
     "comparador-descripcion"
   ).textContent = `Analizando «${nombre}» y buscando su categoría…`;
-  document.getElementById("comparador-grafico").hidden = true;
+  mostrarVisualComparador(false);
   const mensaje = document.getElementById("comparador-mensaje");
   mensaje.hidden = false;
   mensaje.textContent = "Buscando registros reales y categoría.";
@@ -393,7 +398,8 @@ function mostrarMensaje(titulo, texto) {
   document.getElementById("comparador-categoria").textContent = titulo;
   document.getElementById("comparador-descripcion").textContent = "";
   document.getElementById("comparador-grafico").innerHTML = "";
-  document.getElementById("comparador-grafico").hidden = true;
+  document.getElementById("comparador-alza").innerHTML = "";
+  mostrarVisualComparador(false);
   const mensaje = document.getElementById("comparador-mensaje");
   mensaje.hidden = false;
   mensaje.textContent = texto;
@@ -414,8 +420,7 @@ function mostrarComparador(grupo) {
     ? `Tu nombre: ${formatearNombre(actual)} · ${formatearVeces(actual.veces)}`
     : "Comparación contra las referencias de la categoría.";
 
-  const grafico = document.getElementById("comparador-grafico");
-  grafico.hidden = false;
+  mostrarVisualComparador(true);
   document.getElementById("comparador-mensaje").hidden = true;
 
   const nota = document.getElementById("comparador-nota");
@@ -423,11 +428,14 @@ function mostrarComparador(grupo) {
     ? " La categoría de tu nombre es una estimación IA."
     : "";
   nota.textContent =
-    "Las referencias alta, media y baja son nombres reales de los 59 booms " +
-    "curados de esta categoría. Tus nombres se agregan a medida que los dices." +
+    "Arriba se comparan las series anuales de cada nombre; abajo, el punto " +
+    "de alza. Las referencias alta, media y baja son nombres reales de los 59 " +
+    "booms curados de esta categoría. Tus nombres se agregan a medida que los " +
+    "dices." +
     estimada;
 
-  dibujarComparador(grupo, refs, usuarios);
+  dibujarSeries(grupo, refs, usuarios);
+  dibujarAlza(grupo, refs, usuarios);
 }
 
 // ---------- Gráfico de comparación ----------
@@ -480,7 +488,189 @@ function construirFilas(grupo, refs, usuarios) {
   return filas;
 }
 
-function dibujarComparador(grupo, refs, usuarios) {
+function colorDeFila(fila, indice, colorGrupo) {
+  if (fila.esActual) return "#e34948";
+  if (fila.esReferencia) return colorGrupo;
+  const paleta = [
+    colorGrupo,
+    "#2a78d6",
+    "#1baf7a",
+    "#8a5cf6",
+    "#c98a18",
+    "#0f9b8e",
+    "#d4577a",
+  ];
+  return paleta[(indice + 1) % paleta.length];
+}
+
+function nombreLeyenda(fila) {
+  return fila.etiqueta
+    .replace(" · Tu nombre", "")
+    .replace(" · Dicho", "");
+}
+
+function dibujarSeries(grupo, refs, usuarios) {
+  if (typeof Plotly === "undefined") return;
+
+  const filas = construirFilas(grupo, refs, usuarios);
+  if (!filas.length) return;
+
+  const colorGrupo = COLORES[grupo] || "#2a78d6";
+  const anios = Array.from(
+    { length: DATOS.anio_max - DATOS.anio_min + 1 },
+    (_, i) => DATOS.anio_min + i
+  );
+
+  const trazas = [];
+  const boomX = [];
+  const boomY = [];
+  const boomText = [];
+  const boomColors = [];
+  const boomSizes = [];
+  const boomSymbols = [];
+  const boomLineColors = [];
+  const boomLineWidths = [];
+
+  filas.forEach((fila, indice) => {
+    const color = colorDeFila(fila, indice, colorGrupo);
+    const serie = Array.isArray(fila.punto.serie) ? fila.punto.serie : [];
+    const y = anios.map((_, i) => {
+      const valor = Number(serie[i]);
+      return Number.isFinite(valor) && valor > 0 ? valor : null;
+    });
+
+    trazas.push({
+      x: anios,
+      y,
+      mode: "lines",
+      type: "scatter",
+      name: nombreLeyenda(fila),
+      line: {
+        color,
+        width: fila.esActual ? 3.5 : fila.esReferencia ? 1.6 : 2.3,
+        dash: fila.esReferencia && !fila.esActual ? "dot" : "solid",
+      },
+      opacity: fila.esReferencia && !fila.esActual ? 0.72 : 1,
+      connectgaps: true,
+      hovertemplate: `<b>${nombreLeyenda(
+        fila
+      )}</b><br>%{x}: %{y} inscripciones<extra></extra>`,
+      showlegend: true,
+    });
+
+    const anio = Number(fila.punto.anio);
+    let yBoom = Number(fila.punto.n);
+    if (!Number.isFinite(yBoom) || yBoom <= 0) {
+      yBoom = Number(serie[anio - DATOS.anio_min]);
+    }
+    if (!Number.isFinite(yBoom) || yBoom <= 0) {
+      const maximo = Math.max(...serie);
+      if (maximo > 0) {
+        yBoom = maximo;
+      }
+    }
+    if (!Number.isFinite(yBoom) || yBoom <= 0) return;
+
+    boomX.push(anio);
+    boomY.push(yBoom);
+    boomText.push(
+      Number(fila.valor) > 0 ? formatearVeces(fila.valor) : "Sin alza"
+    );
+    boomColors.push(color);
+    boomSizes.push(fila.esActual ? 14 : 10);
+    const minima =
+      !!fila.punto.sinAlza || Number(fila.valor) < 4;
+    boomSymbols.push(minima ? "circle-open" : "circle");
+    boomLineColors.push(fila.esActual ? "#0b0b0b" : "#ffffff");
+    boomLineWidths.push(fila.esActual ? 2 : 1.5);
+  });
+
+  if (boomX.length) {
+    trazas.push({
+      x: boomX,
+      y: boomY,
+      mode: "markers+text",
+      type: "scatter",
+      text: boomText,
+      textposition: "top center",
+      textfont: { family: "system-ui, sans-serif", size: 11, color: "#0b0b0b" },
+      marker: {
+        size: boomSizes,
+        color: boomColors,
+        symbol: boomSymbols,
+        line: { color: boomLineColors, width: boomLineWidths },
+      },
+      hovertemplate: "<b>%{text}</b><br>%{x}<extra></extra>",
+      showlegend: false,
+    });
+  }
+
+  const altura = Math.max(
+    420,
+    Math.min(
+      620,
+      typeof window !== "undefined" ? window.innerHeight - 360 : 500
+    )
+  );
+  const maxY = Math.max(
+    1,
+    ...filas.flatMap((f) =>
+      (Array.isArray(f.punto.serie) ? f.punto.serie : []).map(Number)
+    )
+  );
+  const yTicks = [1, 10, 100, 1000, 10000, 100000].filter(
+    (v) => v <= maxY * 1.15
+  );
+
+  const layout = {
+    height: altura,
+    margin: { t: 96, r: 30, b: 52, l: 72 },
+    paper_bgcolor: "transparent",
+    plot_bgcolor: "transparent",
+    font: { family: "system-ui, sans-serif", color: "#0b0b0b" },
+    legend: {
+      orientation: "h",
+      x: 0,
+      y: 1.16,
+      xanchor: "left",
+      yanchor: "top",
+      font: { size: 10.5 },
+      itemclick: false,
+      itemdoubleclick: false,
+      bgcolor: "rgba(255,255,255,0.75)",
+    },
+    hovermode: "x unified",
+    xaxis: {
+      title: { text: "Año", font: { size: 12 } },
+      range: [DATOS.anio_min - 1, DATOS.anio_max + 1],
+      tickvals: [1920, 1940, 1960, 1980, 2000, 2020],
+      ticktext: ["1920", "1940", "1960", "1980", "2000", "2020"],
+      gridcolor: "#e1e0d9",
+      zeroline: false,
+      fixedrange: true,
+    },
+    yaxis: {
+      type: "log",
+      title: { text: "Inscripciones (escala log)", font: { size: 12 } },
+      tickvals: yTicks,
+      ticktext: yTicks.map((v) =>
+        v >= 1000 ? v.toLocaleString("es-CL") : String(v)
+      ),
+      gridcolor: "#e1e0d9",
+      zeroline: false,
+      fixedrange: true,
+      automargin: true,
+    },
+  };
+
+  Plotly.react("comparador-grafico", trazas, layout, {
+    displayModeBar: false,
+    responsive: true,
+    scrollZoom: false,
+  });
+}
+
+function dibujarAlza(grupo, refs, usuarios) {
   if (typeof Plotly === "undefined") return;
 
   const filas = construirFilas(grupo, refs, usuarios);
@@ -490,44 +680,43 @@ function dibujarComparador(grupo, refs, usuarios) {
   const xMax = Math.max(
     8,
     ...filas.map((f) => Math.max(0.55, Number(f.valor) || 0))
-  ) * 1.25;
-
+  ) * 1.8;
   const xs = filas.map((f) =>
     Math.max(0.55, Number.isFinite(Number(f.valor)) ? Number(f.valor) : 0)
   );
   const texts = filas.map((f) =>
     Number(f.valor) > 0 ? formatearVeces(f.valor) : "Sin alza"
   );
+  const etiquetas = filas.map((f) => f.etiqueta);
+  const colores = filas.map((f, i) => colorDeFila(f, i, colorGrupo));
 
-  // Línea de cada fila, desde el inicio del eje hasta el punto.
-  const trazasLineas = filas.map((f, i) => ({
+  const lineas = filas.map((f, i) => ({
     x: [0.5, xs[i]],
     y: [f.etiqueta, f.etiqueta],
     mode: "lines",
     type: "scatter",
     line: {
-      color: f.esActual ? "#e34948" : colorGrupo,
+      color: colores[i],
       width: f.esActual ? 2.5 : 1.5,
     },
     hoverinfo: "skip",
     showlegend: false,
   }));
 
-  const trazaPuntos = {
+  const puntos = {
     x: xs,
-    y: filas.map((f) => f.etiqueta),
+    y: etiquetas,
     mode: "markers+text",
     type: "scatter",
     text: texts,
     textposition: "middle right",
-    textfont: {
-      family: "system-ui, sans-serif",
-      size: 12,
-      color: "#0b0b0b",
-    },
+    textfont: { family: "system-ui, sans-serif", size: 11, color: "#0b0b0b" },
     marker: {
-      size: filas.map((f) => (f.esActual ? 16 : 11)),
-      color: filas.map((f) => (f.esActual ? "#e34948" : colorGrupo)),
+      size: filas.map((f) => (f.esActual ? 15 : 10)),
+      color: colores,
+      symbol: filas.map((f, i) =>
+        Number(f.valor) < 4 || !!f.punto.sinAlza ? "circle-open" : "circle"
+      ),
       line: {
         color: filas.map((f) => (f.esActual ? "#0b0b0b" : "#ffffff")),
         width: filas.map((f) => (f.esActual ? 2 : 1.5)),
@@ -537,25 +726,10 @@ function dibujarComparador(grupo, refs, usuarios) {
     showlegend: false,
   };
 
-  const etiquetas = filas.map((f) => f.etiqueta);
-  const alturaDisponible =
-    typeof window !== "undefined" ? window.innerHeight - 250 : 500;
-  const alturas = Math.max(
-    420,
-    Math.min(760, alturaDisponible),
-    150 + filas.length * 54
-  );
-
-  const esAngosto =
-    typeof window !== "undefined" && window.innerWidth < 720;
+  const altura = Math.max(145, 58 + filas.length * 30);
   const layout = {
-    height: alturas,
-    margin: {
-      t: 52,
-      r: esAngosto ? 52 : 84,
-      b: 54,
-      l: esAngosto ? 168 : 230,
-    },
+    height: altura,
+    margin: { t: 40, r: 82, b: 36, l: 230 },
     paper_bgcolor: "transparent",
     plot_bgcolor: "transparent",
     font: { family: "system-ui, sans-serif", color: "#0b0b0b" },
@@ -563,7 +737,7 @@ function dibujarComparador(grupo, refs, usuarios) {
     hovermode: false,
     xaxis: {
       type: "log",
-      title: { text: "Alza (veces)", font: { size: 12 } },
+      title: { text: "Alza (veces)", font: { size: 11 } },
       range: [Math.log10(0.5), Math.log10(xMax)],
       tickvals: [1, 2, 4, 8, 16, 32, 64, 128, 256].filter(
         (v) => v <= xMax * 1.02
@@ -580,8 +754,7 @@ function dibujarComparador(grupo, refs, usuarios) {
       categoryorder: "array",
       categoryarray: etiquetas.slice().reverse(),
       automargin: true,
-      tickfont: { size: 12 },
-      gridcolor: "rgba(0,0,0,0.04)",
+      tickfont: { size: 10.5 },
       fixedrange: true,
     },
     shapes: [
@@ -617,17 +790,16 @@ function dibujarComparador(grupo, refs, usuarios) {
         y: 1.04,
         text: "Alza mínima (<4x)",
         showarrow: false,
-        font: { size: 11, color: "#8a5a00" },
+        font: { size: 10, color: "#8a5a00" },
       },
     ],
   };
 
-  Plotly.react(
-    "comparador-grafico",
-    [...trazasLineas, trazaPuntos],
-    layout,
-    { displayModeBar: false, responsive: true, scrollZoom: false }
-  );
+  Plotly.react("comparador-alza", [...lineas, puntos], layout, {
+    displayModeBar: false,
+    responsive: true,
+    scrollZoom: false,
+  });
 }
 
 // ---------- Flujo de voz ----------

@@ -30,12 +30,14 @@ computador. Todo se controla desde el micrófono del celular.
 
 ## Gráfico
 
-Dot plot horizontal con escala logarítmica:
+Dos vistas coordinadas:
 
-- Referencias alta, media y baja.
-- Nombres dichos por el usuario.
-- Zona sombreada para alzas menores a 4x.
-- Etiquetas con nombre, año y valor exacto.
+- **Arriba:** gráfico de líneas con las series anuales reales de cada nombre,
+  eje Y logarítmico y un marcador en el año del boom de cada uno.
+- **Abajo:** franja de alza con las referencias alta, media y baja, los nombres
+  dichos, la línea de 4x y la zona sombreada **Alza mínima (<4x)**.
+
+Las líneas y los puntos usan solo series reales; no se inventan valores.
 
 ## Datos
 

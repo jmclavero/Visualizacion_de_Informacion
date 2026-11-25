@@ -1033,3 +1033,44 @@ body.comparador-activo #overview {
     height: 156px !important;
   }
 }
+
+/* Comparador de líneas + franja de alza (V4) */
+#comparador-visual {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+}
+
+#comparador-visual[hidden] {
+  display: none;
+}
+
+.comparador-subtitulo {
+  margin: 8px 0 0;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+#comparador-grafico {
+  width: 100%;
+  min-height: 420px;
+}
+
+#comparador-alza {
+  width: 100%;
+  min-height: 145px;
+}
+
+@media (max-width: 720px) {
+  #comparador-grafico {
+    min-height: 360px;
+  }
+
+  #comparador-alza {
+    min-height: 125px;
+  }
+}
