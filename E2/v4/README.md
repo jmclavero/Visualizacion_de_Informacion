@@ -39,9 +39,10 @@ permanecen siempre visibles. El lollipop se ajusta al alto disponible y todas
 las filas se muestran a la vez. Junto al nombre actual se muestra el motivo
 curado o, si falta, una estimación de la IA claramente marcada.
 
-Al mostrar un nombre aparece durante 5 segundos un panel en el costado derecho
-con su serie anual de inscripciones y el punto del boom. El panel no altera el
-layout y se oculta solo.
+Al mostrar un nombre aparece durante 5 segundos un panel grande en el costado
+derecho, con el estilo del detalle de la V3: categoría, nombre, serie anual de
+inscripciones, punto del boom, motivo y datos del alza. Se desliza desde la
+derecha, no altera el layout y se oculta solo. En móvil entra como bottom sheet.
 
 Un único **lollipop ordenado por alza**, con una fila por nombre.
 

@@ -519,19 +519,32 @@ function mostrarComparador(grupo) {
 }
 
 let temporizadorDetalle = null;
+let temporizadorCierreDetalle = null;
 
-function ocultarDetalleNombre() {
+function ocultarDetalleNombre(immediate = false) {
   clearTimeout(temporizadorDetalle);
+  clearTimeout(temporizadorCierreDetalle);
   temporizadorDetalle = null;
+  temporizadorCierreDetalle = null;
+
   const panel = document.getElementById("detalle-panel");
-  if (panel) panel.hidden = true;
-  if (typeof Plotly !== "undefined") {
-    try {
-      Plotly.purge("detalle-grafico");
-    } catch (error) {
-      // El panel puede no haber sido dibujado todavía.
+  if (!panel) return;
+  panel.classList.remove("visible");
+
+  const finalizar = () => {
+    if (panel.classList.contains("visible")) return;
+    panel.hidden = true;
+    if (typeof Plotly !== "undefined") {
+      try {
+        Plotly.purge("detalle-grafico");
+      } catch (error) {
+        // El panel puede no haber sido dibujado todavía.
+      }
     }
-  }
+  };
+
+  if (immediate) finalizar();
+  else temporizadorCierreDetalle = setTimeout(finalizar, 420);
 }
 
 function dibujarDetalleNombre(punto, grupo) {
@@ -655,35 +668,64 @@ function mostrarDetalleNombre(punto, grupo) {
   if (!punto || !Array.isArray(punto.serie) || !punto.serie.length) return;
 
   const panel = document.getElementById("detalle-panel");
+  const categoriaEl = document.getElementById("detalle-categoria");
   const titulo = document.getElementById("detalle-titulo");
-  const subtitulo = document.getElementById("detalle-subtitulo");
-  if (!panel || !titulo || !subtitulo) return;
+  const alzaEl = document.getElementById("detalle-alza");
+  const iaEl = document.getElementById("detalle-ia");
+  const causaEl = document.getElementById("detalle-causa");
+  const metaEl = document.getElementById("detalle-meta");
+  if (!panel || !categoriaEl || !titulo || !alzaEl || !causaEl || !metaEl) {
+    return;
+  }
 
   clearTimeout(temporizadorDetalle);
-  panel.hidden = false;
-  titulo.textContent = formatearNombre(punto);
+  clearTimeout(temporizadorCierreDetalle);
+  temporizadorDetalle = null;
+  temporizadorCierreDetalle = null;
+
+  const color = COLORES_CATEGORIA[grupo] || "#0b0b0b";
   const n = Number(punto.n);
-  subtitulo.textContent =
-    Number(punto.veces) > 0
-      ? `Alza ${formatearVeces(punto.veces)} · ${
-          Number.isFinite(n) ? formatearNumero(n) : "—"
-        } inscr. en ${punto.anio}`
-      : "Sin alza calculable para este nombre";
+  const prev = Number(punto.prev);
+  const causa = String(punto.causa || "").trim();
+
+  panel.style.setProperty("--categoria-color", color);
+  categoriaEl.textContent = grupo;
+  categoriaEl.style.color = color;
+  titulo.textContent = formatearNombre(punto);
+  alzaEl.textContent =
+    Number(punto.veces) > 0 ? formatearVeces(punto.veces) : "Sin alza";
+  if (iaEl) iaEl.hidden = !punto.causaEstimada;
+
+  causaEl.textContent = causa
+    ? `${
+        punto.causaEstimada ? "Motivo estimado por IA: " : "Motivo: "
+      }${causa}`
+    : "Sin motivo estimado.";
+
+  const partesMeta = [];
+  if (Number.isFinite(n) && n > 0) {
+    partesMeta.push(`${formatearNumero(n)} inscripciones en el boom`);
+  }
+  if (Number.isFinite(prev) && prev > 0) {
+    partesMeta.push(`promedio previo ${formatearNumero(prev)}`);
+  }
+  if (punto.anio) partesMeta.push(`año ${punto.anio}`);
+  metaEl.textContent = partesMeta.join(" · ");
+
+  panel.hidden = false;
+  void panel.offsetWidth;
+  panel.classList.add("visible");
 
   requestAnimationFrame(() => {
-    if (!panel.hidden) dibujarDetalleNombre(punto, grupo);
+    if (panel.hidden) return;
+    dibujarDetalleNombre(punto, grupo);
+    if (typeof Plotly !== "undefined" && Plotly.Plots) {
+      Plotly.Plots.resize("detalle-grafico");
+    }
   });
 
   temporizadorDetalle = setTimeout(() => {
-    panel.hidden = true;
-    temporizadorDetalle = null;
-    if (typeof Plotly !== "undefined") {
-      try {
-        Plotly.purge("detalle-grafico");
-      } catch (error) {
-        // Sin gráfico que limpiar.
-      }
-    }
+    ocultarDetalleNombre();
   }, 5000);
 }
 
