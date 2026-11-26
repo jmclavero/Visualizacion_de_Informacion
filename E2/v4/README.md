@@ -33,6 +33,11 @@ computador. Todo se controla desde el micrófono del celular.
 
 ## Gráfico
 
+La comparación ocupa una sola pantalla, sin scroll vertical. El título de la
+categoría y el aviso **“Puedes volver a mencionar otro nombre para mostrarlo”**
+permanecen siempre visibles. El lollipop se ajusta al alto disponible y todas
+las filas se muestran a la vez.
+
 Un único **lollipop ordenado por alza**, con una fila por nombre.
 
 - La fila superior es el mayor boom.

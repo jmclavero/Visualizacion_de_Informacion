@@ -430,7 +430,6 @@ function mostrarCargando(nombre) {
   const mensaje = document.getElementById("comparador-mensaje");
   mensaje.hidden = false;
   mensaje.textContent = "Buscando registros reales y categoría.";
-  document.getElementById("comparador-nota").textContent = "";
 }
 
 function mostrarMensaje(titulo, texto) {
@@ -451,8 +450,6 @@ function mostrarMensaje(titulo, texto) {
   const mensaje = document.getElementById("comparador-mensaje");
   mensaje.hidden = false;
   mensaje.textContent = texto;
-  document.getElementById("comparador-nota").textContent =
-    "No se inventan puntos para completar la comparación.";
 }
 
 function mostrarComparador(grupo) {
@@ -479,24 +476,6 @@ function mostrarComparador(grupo) {
 
   mostrarVisualComparador(true);
   document.getElementById("comparador-mensaje").hidden = true;
-
-  const nota = document.getElementById("comparador-nota");
-  const estimada = actual?.categoriaEstimada
-    ? " La categoría de tu nombre es una estimación IA."
-    : "";
-  const sinAlza = usuarios
-    .filter((p) => !(Number(p.veces) > 0))
-    .map(formatearNombre);
-  const extraSinAlza = sinAlza.length
-    ? ` Sin alza: ${sinAlza.join(", ")}.`
-    : "";
-  nota.textContent =
-    "Verde: referencia alta · amarillo: media · rojo: baja. La fila superior " +
-    "es el mayor boom; el punto derecho marca el alza y la etiqueta izquierda " +
-    "muestra las inscripciones en el año del boom. El nombre actual está " +
-    "resaltado; los puntos huecos son alzas menores a 4x." +
-    extraSinAlza +
-    estimada;
 
   dibujarSeries(grupo, refs, usuarios);
 
@@ -729,11 +708,16 @@ function construirTrazasLollipop(filas, refs) {
   return trazas;
 }
 
-function alturaLollipop(cantidad) {
-  return Math.max(500, Math.min(1100, 150 + cantidad * 95));
+function alturaLollipop(disponible) {
+  const respaldo =
+    typeof window !== "undefined" ? window.innerHeight - 320 : 560;
+  return Math.max(180, Math.floor(Number(disponible) || respaldo));
 }
 
-function layoutLollipop(filas, refs) {
+function layoutLollipop(filas, refs, disponible) {
+  const altura = alturaLollipop(disponible);
+  const altoFila = Math.max(10, (altura - 100) / Math.max(1, filas.length));
+  const tamanoEtiqueta = Math.max(6.5, Math.min(11, altoFila * 0.3));
   const etiquetas = filas.map(etiquetaEje);
   const ticktext = filas.map((fila) => {
     const nombre = formatearNombre(fila.punto);
@@ -787,11 +771,11 @@ function layoutLollipop(filas, refs) {
   }
 
   return {
-    height: alturaLollipop(filas.length),
+    height: altura,
     margin: {
-      t: 42,
-      r: esAngosto ? 48 : 112,
-      b: 54,
+      t: esAngosto ? 28 : 36,
+      r: esAngosto ? 52 : 112,
+      b: 48,
       l: esAngosto ? 145 : 250,
     },
     paper_bgcolor: "transparent",
@@ -822,7 +806,7 @@ function layoutLollipop(filas, refs) {
       tickvals: etiquetas,
       ticktext,
       automargin: true,
-      tickfont: { size: esAngosto ? 10.5 : 11 },
+      tickfont: { size: tamanoEtiqueta },
       fixedrange: true,
       showgrid: false,
     },
@@ -845,13 +829,34 @@ function dibujarSeries(grupo, refs, usuarios) {
   const trazas = construirTrazasLollipop(filas, refs);
   if (!trazas.length) return;
 
+  const contenedor = document.getElementById("comparador-grafico");
+  const disponible = contenedor
+    ? contenedor.getBoundingClientRect().height
+    : 0;
+
   Plotly.react(
     "comparador-grafico",
     trazas,
-    layoutLollipop(filas, refs),
+    layoutLollipop(filas, refs, disponible),
     { displayModeBar: false, responsive: true, scrollZoom: false }
   );
 }
+
+let temporizadorRedibujo = null;
+window.addEventListener("resize", () => {
+  clearTimeout(temporizadorRedibujo);
+  temporizadorRedibujo = setTimeout(() => {
+    const visual = document.getElementById("comparador-visual");
+    if (!visual || visual.hidden || !grupoActual || !REFERENCIAS[grupoActual]) {
+      return;
+    }
+    dibujarSeries(
+      grupoActual,
+      REFERENCIAS[grupoActual],
+      ESTADO[grupoActual] || []
+    );
+  }, 120);
+});
 
 // ---------- Flujo de voz ----------
 
