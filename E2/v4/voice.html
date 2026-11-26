@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>Voz · Protobject</title>
   <script src="https://app.protobject.com/framework/p.js"></script>
-  <script src="config.js?v=20261125k"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tone@15.0.4/build/Tone.js"></script>
+  <script src="config.js?v=20261125l"></script>
   <style>
     :root { color-scheme: light; }
     * { box-sizing: border-box; }
@@ -120,6 +121,129 @@
       var ultimoTexto = "";
       var timerEscucha = null;
 
+      // ---------- Sonidos del bee swarm, reproducidos en el celular ----------
+      var ARCHIVOS_SONIDO = {
+        "Teleseries": "sfx/applause.mp3",
+        "Música / Viña": "sfx/saxophone.mp3",
+        "Otras causas televisivas": "sfx/news.mp3",
+        "Sin categoría": "sfx/no-classification.mp3",
+      };
+      var ESCALA_PENTATONICA = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24, 26, 28];
+      var NOTA_RAIZ_MIDI = 52;
+      var AJUSTE_VOLUMEN = {
+        "Otras causas televisivas": -4,
+        "No televisivas": 4,
+      };
+      var RANGOS_AUDIO = {
+        "Teleseries": { rateMin: 0.9, rateMax: 1.12, pitchMin: -2, pitchMax: 3 },
+      };
+      var RANGO_POR_DEFECTO = {
+        rateMin: 0.9,
+        rateMax: 1.35,
+        pitchMin: -10,
+        pitchMax: 7,
+      };
+      var voces = null;
+      var pitchShift = null;
+      var popSynth = null;
+      var cargaPromesa = null;
+
+      function tDesdeVeces(veces) {
+        var t = Math.log(Number(veces) / 4) / Math.log(187 / 4);
+        return Math.max(0, Math.min(1, t));
+      }
+
+      function notasDesdeT(t, cantidad) {
+        var base = Math.round(
+          Math.max(0, Math.min(1, t)) * (ESCALA_PENTATONICA.length - 1)
+        );
+        var notas = [];
+        for (var i = 0; i < cantidad; i++) {
+          var indice = Math.min(
+            base + i * 2,
+            ESCALA_PENTATONICA.length - 1
+          );
+          notas.push(
+            Tone.Frequency(
+              NOTA_RAIZ_MIDI + ESCALA_PENTATONICA[indice],
+              "midi"
+            ).toFrequency()
+          );
+        }
+        return notas;
+      }
+
+      function asegurarAudio() {
+        if (typeof Tone === "undefined") {
+          return Promise.reject(new Error("Tone.js no está disponible"));
+        }
+        return Tone.start().then(function () {
+          if (!cargaPromesa) {
+            pitchShift = new Tone.PitchShift({ pitch: 0 }).toDestination();
+            popSynth = new Tone.PolySynth(Tone.MembraneSynth, {
+              pitchDecay: 0.01,
+              octaves: 3,
+              oscillator: { type: "sine" },
+              envelope: {
+                attack: 0.001,
+                decay: 0.8,
+                sustain: 0.08,
+                release: 0.6,
+              },
+              volume: -8,
+            }).connect(pitchShift);
+            voces = new Tone.Players(ARCHIVOS_SONIDO).connect(pitchShift);
+            cargaPromesa = Tone.loaded();
+          }
+          return cargaPromesa;
+        });
+      }
+
+      function reproducirSonido(grupo, veces) {
+        var clave = grupo === "No televisivas" ? "No televisivas" : grupo;
+        var t = tDesdeVeces(Number(veces) || 4);
+        var volumen = -18 + 12 * t + (AJUSTE_VOLUMEN[clave] || 0);
+        volumen = Math.max(-10, Math.min(0, volumen));
+
+        asegurarAudio()
+          .then(function () {
+            if (clave === "No televisivas") {
+              if (!popSynth) return;
+              if (voces) voces.stopAll();
+              popSynth.volume.value = volumen;
+              pitchShift.pitch = 0;
+              var notas = notasDesdeT(t, 3);
+              var intervalo = 0.45 - 0.15 * t;
+              var tiempo = Tone.now() + 0.02;
+              notas.forEach(function (frecuencia) {
+                popSynth.triggerAttackRelease(frecuencia, "8n", tiempo);
+                tiempo += intervalo * (0.9 + Math.random() * 0.2);
+              });
+              return;
+            }
+
+            if (!voces || !voces.has(clave)) return;
+            voces.stopAll();
+            var player = voces.player(clave);
+            player.volume.value = volumen;
+            var r = RANGOS_AUDIO[clave] || RANGO_POR_DEFECTO;
+            player.playbackRate = r.rateMin + (r.rateMax - r.rateMin) * t;
+            pitchShift.pitch = r.pitchMin + (r.pitchMax - r.pitchMin) * t;
+            player.stop();
+            player.start();
+          })
+          .catch(function (error) {
+            console.warn("No se pudo reproducir el sonido:", error);
+          });
+      }
+
+      if (typeof Protobject !== "undefined" && Protobject.Core) {
+        Protobject.Core.onReceived(function (mensaje) {
+          if (!mensaje || mensaje.tipo !== "sonido") return;
+          reproducirSonido(mensaje.grupo, mensaje.veces);
+        });
+      }
+
       function enviar(mensaje) {
         if (typeof Protobject === "undefined" || !Protobject.Core) return;
         Protobject.Core.send(mensaje).to("index.html");
@@ -197,7 +321,12 @@
           enviar({ tipo: "nombre", nombre: nombre });
         });
 
-        hablarBtn.addEventListener("click", iniciar);
+        hablarBtn.addEventListener("click", function () {
+          asegurarAudio().catch(function (error) {
+            console.warn("No se pudo habilitar el audio:", error);
+          });
+          iniciar();
+        });
       } else {
         hablarBtn.disabled = true;
         estadoEl.textContent = "Este navegador no soporta reconocimiento de voz.";

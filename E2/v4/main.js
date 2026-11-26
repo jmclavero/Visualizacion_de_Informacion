@@ -6,6 +6,7 @@ const ORDEN_CATEGORIAS = [
   "Música / Viña",
   "Otras causas televisivas",
   "No televisivas",
+  "Sin categoría",
 ];
 
 const CATEGORIA_A_GRUPO = {
@@ -20,7 +21,8 @@ const CATEGORIA_A_GRUPO = {
   migracion: "No televisivas",
   "religion / tradicion": "No televisivas",
   "moda / tendencia": "No televisivas",
-  "sin identificar": null,
+  "sin identificar": "Sin categoría",
+  "sin categoria": "Sin categoría",
 };
 
 const CATEGORIAS_TV = new Set([
@@ -39,6 +41,7 @@ const COLORES_CATEGORIA = {
   "Música / Viña": "#7b4bd8",
   "Otras causas televisivas": "#0f8f9e",
   "No televisivas": "#c2478a",
+  "Sin categoría": "#898781",
 };
 
 const COLORES_REFERENCIA = {
@@ -435,7 +438,15 @@ function mostrarMensaje(titulo, texto) {
   limpiarColorCategoria();
   document.getElementById("comparador-categoria").textContent = titulo;
   document.getElementById("comparador-descripcion").textContent = "";
-  document.getElementById("comparador-grafico").innerHTML = "";
+  const grafico = document.getElementById("comparador-grafico");
+  if (typeof Plotly !== "undefined" && grafico) {
+    try {
+      Plotly.purge(grafico);
+    } catch (error) {
+      console.warn("No se pudo limpiar el gráfico:", error);
+    }
+  }
+  if (grafico) grafico.innerHTML = "";
   mostrarVisualComparador(false);
   const mensaje = document.getElementById("comparador-mensaje");
   mensaje.hidden = false;
@@ -488,6 +499,16 @@ function mostrarComparador(grupo) {
     estimada;
 
   dibujarSeries(grupo, refs, usuarios);
+
+  // Al volver de un mensaje, el contenedor pudo haber estado oculto. Forzamos
+  // un resize después de que el navegador aplique el nuevo layout.
+  if (typeof requestAnimationFrame === "function") {
+    requestAnimationFrame(() => {
+      if (typeof Plotly !== "undefined" && Plotly.Plots) {
+        Plotly.Plots.resize("comparador-grafico");
+      }
+    });
+  }
 }
 
 // ---------- Gráfico de comparación ----------
@@ -834,6 +855,19 @@ function dibujarSeries(grupo, refs, usuarios) {
 
 // ---------- Flujo de voz ----------
 
+function avisarSonidoCelular(grupo, punto) {
+  if (typeof Protobject === "undefined" || !Protobject.Core) return;
+  try {
+    Protobject.Core.send({
+      tipo: "sonido",
+      grupo,
+      veces: Number(punto?.veces) || 0,
+    }).to("voice.html");
+  } catch (error) {
+    console.warn("No se pudo enviar el sonido al celular:", error);
+  }
+}
+
 async function manejarNombreVoz(nombreCrudo) {
   if (vozOcupada) return;
   const nombre = limpiarNombreVoz(nombreCrudo);
@@ -873,16 +907,15 @@ async function manejarNombreVoz(nombreCrudo) {
           punto.anio,
           punto.veces
         );
-        if (!info) {
-          mostrarMensaje(
-            "Sin categoría",
-            `Se encontraron registros para «${nombre}», pero no se pudo determinar una categoría.`
-          );
-          return;
+        if (info) {
+          categoria = info.categoria;
+          grupo = info.grupo;
+          estimada = true;
+        } else {
+          categoria = "Sin categoría";
+          grupo = "Sin categoría";
+          estimada = false;
         }
-        categoria = info.categoria;
-        grupo = info.grupo;
-        estimada = true;
       }
     } else {
       const entrada = await cargarShardReal(nombre);
@@ -908,27 +941,25 @@ async function manejarNombreVoz(nombreCrudo) {
         punto.anio,
         punto.veces
       );
-      if (!info) {
-        mostrarMensaje(
-          "Sin categoría",
-          `Se encontraron registros para «${nombre}», pero no se pudo determinar una categoría.`
-        );
-        return;
+      if (info) {
+        categoria = info.categoria;
+        grupo = info.grupo;
+        estimada = true;
+      } else {
+        categoria = "Sin categoría";
+        grupo = "Sin categoría";
+        estimada = false;
       }
-      categoria = info.categoria;
-      grupo = info.grupo;
-      estimada = true;
     }
 
     if (!grupo) {
-      mostrarMensaje(
-        "Sin categoría",
-        `No se pudo asignar «${nombre}» a una categoría. No se agrega a la comparación.`
-      );
-      return;
+      categoria = "Sin categoría";
+      grupo = "Sin categoría";
+      estimada = false;
     }
 
     agregarAlEstado(punto, grupo, categoria, estimada);
+    avisarSonidoCelular(grupo, punto);
     mostrarComparador(grupo);
   } catch (error) {
     mostrarMensaje(

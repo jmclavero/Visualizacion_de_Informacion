@@ -15,11 +15,14 @@ computador. Todo se controla desde el micrófono del celular.
 
 ## Comparación
 
-- Se usan los **59 puntos curados con categoría**.
+- Se usan los puntos curados del bee swarm: **59 con categoría** y **144 sin
+  categoría**.
 - Para la categoría del nombre se eligen tres referencias reales:
   - Alza alta.
   - Alza media (el punto real más cercano a la mediana).
   - Alza baja.
+- Los nombres sin categoría se comparan con tres referencias reales del grupo
+  **Sin categoría**.
 - No se interpolan ni inventan puntos.
 - Los nombres dichos se guardan por categoría y se muestran junto a las
   referencias.
@@ -51,6 +54,20 @@ Un único **lollipop ordenado por alza**, con una fila por nombre.
   umbral de 4x.
 
 Los puntos y las barras usan solo datos reales; no se inventan valores.
+
+## Sonido
+
+El sonido se reproduce en el celular, no en el computador.
+
+- Al tocar **HABLAR** se prepara el audio del teléfono.
+- Cuando la página principal confirma un nombre, envía al celular el grupo y
+  el tamaño del boom.
+- El celular reproduce el mismo sonido del bee swarm: applause para
+  Teleseries, saxofón para Música/Viña, news para Otras causas televisivas,
+  arpegio sintetizado para No televisivas y no-classification para Sin
+  categoría.
+- El sonido se repite si se vuelve a decir el mismo nombre.
+- No se reproduce al redibujar ni al cambiar de categoría.
 
 ## Datos
 
