@@ -1043,8 +1043,34 @@ body.intro-activa {
 
 .comparador-descripcion {
   margin: 0 0 4px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 18px;
   color: var(--text-secondary);
   font-size: clamp(0.95rem, 1.7vw, 1.15rem);
+}
+
+.comparador-nombre {
+  flex: 0 1 auto;
+}
+
+.comparador-motivo {
+  flex: 1 1 420px;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: 0.92em;
+  line-height: 1.35;
+}
+
+.comparador-motivo::before {
+  content: "Motivo: ";
+  color: var(--categoria-color, var(--text-primary));
+  font-weight: 800;
+}
+
+.comparador-motivo.motivo-ia::before {
+  content: "Motivo estimado por IA: ";
 }
 
 .comparador-grafico {
@@ -1067,6 +1093,56 @@ body.intro-activa {
 
 .comparador-mensaje[hidden] {
   display: none;
+}
+
+.detalle-panel {
+  position: absolute;
+  z-index: 10;
+  right: clamp(16px, 3vw, 48px);
+  top: clamp(140px, 21vh, 220px);
+  width: min(390px, 34vw);
+  height: min(340px, 44vh);
+  padding: 14px 16px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid var(--border);
+  border-top: 4px solid var(--categoria-color, var(--text-muted));
+  border-radius: 16px;
+  box-shadow: 0 20px 55px rgba(11, 11, 11, 0.16);
+  pointer-events: none;
+}
+
+.detalle-panel[hidden] {
+  display: none;
+}
+
+.detalle-eyebrow {
+  margin: 0;
+  color: var(--categoria-color, var(--text-muted));
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.detalle-titulo {
+  margin: 1px 0 0;
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+
+.detalle-subtitulo {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.detalle-grafico {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
 }
 
 /* La V4 no usa los botones ni el QR automático del framework. */
@@ -1104,6 +1180,15 @@ body.comparador-activo {
 
   .comparador-grafico {
     min-height: 0;
+  }
+
+  .detalle-panel {
+    top: auto;
+    right: 14px;
+    bottom: 14px;
+    left: 14px;
+    width: auto;
+    height: min(290px, 37vh);
   }
 
   .v4-qr {

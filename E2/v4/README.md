@@ -36,7 +36,12 @@ computador. Todo se controla desde el micrófono del celular.
 La comparación ocupa una sola pantalla, sin scroll vertical. El título de la
 categoría y el aviso **“Puedes volver a mencionar otro nombre para mostrarlo”**
 permanecen siempre visibles. El lollipop se ajusta al alto disponible y todas
-las filas se muestran a la vez.
+las filas se muestran a la vez. Junto al nombre actual se muestra el motivo
+curado o, si falta, una estimación de la IA claramente marcada.
+
+Al mostrar un nombre aparece durante 5 segundos un panel en el costado derecho
+con su serie anual de inscripciones y el punto del boom. El panel no altera el
+layout y se oculta solo.
 
 Un único **lollipop ordenado por alza**, con una fila por nombre.
 

@@ -206,6 +206,10 @@ function construirPuntosCurados() {
         extra: Number(b.extra),
         categoria: b.categoria,
         grupo: grupoDeCategoria(b.categoria),
+        causa: String(b.causa || "").trim(),
+        confianza: b.confianza || "",
+        fuente: b.fuente || "",
+        causaEstimada: false,
         serie: b.serie,
         real: true,
       };
@@ -358,7 +362,9 @@ async function consultarCategoria(nombre, anio, veces) {
       categoria: data.categoria,
       grupo,
       estimada: true,
+      causa: String(data.causa || "").trim(),
       confianza: data.confianza || "Baja",
+      fuente: data.fuente || "",
     };
   } catch {
     return null;
@@ -421,11 +427,18 @@ function limpiarColorCategoria() {
 
 function mostrarCargando(nombre) {
   abrirComparador();
+  ocultarDetalleNombre();
   limpiarColorCategoria();
   document.getElementById("comparador-categoria").textContent = "Buscando…";
-  document.getElementById(
-    "comparador-descripcion"
-  ).textContent = `Analizando «${nombre}» y buscando su categoría…`;
+  const nombreEl = document.getElementById("comparador-nombre");
+  if (nombreEl) {
+    nombreEl.textContent = `Analizando «${nombre}» y buscando su categoría…`;
+  }
+  const motivoEl = document.getElementById("comparador-motivo");
+  if (motivoEl) {
+    motivoEl.hidden = true;
+    motivoEl.textContent = "";
+  }
   mostrarVisualComparador(false);
   const mensaje = document.getElementById("comparador-mensaje");
   mensaje.hidden = false;
@@ -434,9 +447,16 @@ function mostrarCargando(nombre) {
 
 function mostrarMensaje(titulo, texto) {
   abrirComparador();
+  ocultarDetalleNombre();
   limpiarColorCategoria();
   document.getElementById("comparador-categoria").textContent = titulo;
-  document.getElementById("comparador-descripcion").textContent = "";
+  const nombreEl = document.getElementById("comparador-nombre");
+  if (nombreEl) nombreEl.textContent = "";
+  const motivoEl = document.getElementById("comparador-motivo");
+  if (motivoEl) {
+    motivoEl.hidden = true;
+    motivoEl.textContent = "";
+  }
   const grafico = document.getElementById("comparador-grafico");
   if (typeof Plotly !== "undefined" && grafico) {
     try {
@@ -468,11 +488,19 @@ function mostrarComparador(grupo) {
   if (eyebrow) eyebrow.style.color = colorCategoria;
 
   const actual = usuarios.find((p) => p.esActual) || puntoActual;
-  document.getElementById(
-    "comparador-descripcion"
-  ).textContent = actual
-    ? `Tu nombre: ${formatearNombre(actual)} · ${formatearVeces(actual.veces)}`
-    : "Comparación contra las referencias de la categoría.";
+  const nombreEl = document.getElementById("comparador-nombre");
+  const motivoEl = document.getElementById("comparador-motivo");
+  if (nombreEl) {
+    nombreEl.textContent = actual
+      ? `Tu nombre: ${formatearNombre(actual)} · ${formatearVeces(actual.veces)}`
+      : "Comparación contra las referencias de la categoría.";
+  }
+  if (motivoEl) {
+    const causa = String(actual?.causa || "").trim();
+    motivoEl.hidden = !causa;
+    motivoEl.textContent = causa;
+    motivoEl.classList.toggle("motivo-ia", !!actual?.causaEstimada);
+  }
 
   mostrarVisualComparador(true);
   document.getElementById("comparador-mensaje").hidden = true;
@@ -488,6 +516,175 @@ function mostrarComparador(grupo) {
       }
     });
   }
+}
+
+let temporizadorDetalle = null;
+
+function ocultarDetalleNombre() {
+  clearTimeout(temporizadorDetalle);
+  temporizadorDetalle = null;
+  const panel = document.getElementById("detalle-panel");
+  if (panel) panel.hidden = true;
+  if (typeof Plotly !== "undefined") {
+    try {
+      Plotly.purge("detalle-grafico");
+    } catch (error) {
+      // El panel puede no haber sido dibujado todavía.
+    }
+  }
+}
+
+function dibujarDetalleNombre(punto, grupo) {
+  if (typeof Plotly === "undefined") return;
+  const panel = document.getElementById("detalle-panel");
+  const contenedor = document.getElementById("detalle-grafico");
+  if (!panel || panel.hidden || !contenedor) return;
+
+  const serie = Array.isArray(punto?.serie) ? punto.serie : [];
+  if (!serie.length) return;
+
+  const anios = Array.from(
+    { length: DATOS.anio_max - DATOS.anio_min + 1 },
+    (_, i) => DATOS.anio_min + i
+  );
+  const y = anios.map((_, i) => {
+    const valor = Number(serie[i]);
+    return Number.isFinite(valor) && valor > 0 ? valor : null;
+  });
+  const anio = Number(punto.anio);
+  const n = Number(punto.n);
+  const tieneAlza = Number(punto.veces) > 0 && Number.isFinite(n) && n > 0;
+  const color = COLORES_CATEGORIA[grupo] || "#0b0b0b";
+  const altura = Math.max(
+    160,
+    Math.floor(contenedor.getBoundingClientRect().height || 220)
+  );
+  const maxY = Math.max(1, ...y.filter((v) => Number.isFinite(v)));
+  const yTicks = [1, 10, 100, 1000, 10000, 100000].filter(
+    (v) => v <= maxY * 1.15
+  );
+
+  const trazas = [
+    {
+      x: anios,
+      y,
+      mode: "lines",
+      type: "scatter",
+      line: { color, width: 2.5 },
+      connectgaps: true,
+      hovertemplate: "<b>%{x}</b><br>%{y} inscripciones<extra></extra>",
+      showlegend: false,
+    },
+  ];
+
+  if (tieneAlza) {
+    trazas.push({
+      x: [anio],
+      y: [n],
+      mode: "markers+text",
+      type: "scatter",
+      text: [formatearVeces(punto.veces)],
+      textposition: "top center",
+      textfont: { size: 10, color: "#0b0b0b" },
+      marker: {
+        size: 11,
+        color,
+        line: { color: "#ffffff", width: 2 },
+      },
+      hovertemplate:
+        "<b>Alza</b><br>%{x}: %{y} inscripciones<extra></extra>",
+      showlegend: false,
+    });
+  }
+
+  const layout = {
+    height: altura,
+    margin: { t: 10, r: 16, b: 32, l: 46 },
+    paper_bgcolor: "transparent",
+    plot_bgcolor: "transparent",
+    font: { family: "system-ui, sans-serif", color: "#0b0b0b", size: 10 },
+    showlegend: false,
+    hovermode: "closest",
+    xaxis: {
+      range: [DATOS.anio_min, DATOS.anio_max],
+      tickvals: [1920, 1940, 1960, 1980, 2000, 2020],
+      ticktext: ["1920", "1940", "1960", "1980", "2000", "2020"],
+      tickfont: { size: 9 },
+      gridcolor: "#e1e0d9",
+      zeroline: false,
+      fixedrange: true,
+    },
+    yaxis: {
+      type: "log",
+      tickvals: yTicks,
+      ticktext: yTicks.map((v) =>
+        v >= 1000 ? v.toLocaleString("es-CL") : String(v)
+      ),
+      tickfont: { size: 9 },
+      gridcolor: "#e1e0d9",
+      zeroline: false,
+      fixedrange: true,
+      automargin: true,
+    },
+  };
+
+  if (tieneAlza) {
+    layout.shapes = [
+      {
+        type: "line",
+        xref: "x",
+        x0: anio,
+        x1: anio,
+        yref: "paper",
+        y0: 0,
+        y1: 1,
+        line: { color: "#0b0b0b", width: 1, dash: "dot" },
+        layer: "below",
+      },
+    ];
+  }
+
+  Plotly.react("detalle-grafico", trazas, layout, {
+    displayModeBar: false,
+    responsive: true,
+    scrollZoom: false,
+  });
+}
+
+function mostrarDetalleNombre(punto, grupo) {
+  if (!punto || !Array.isArray(punto.serie) || !punto.serie.length) return;
+
+  const panel = document.getElementById("detalle-panel");
+  const titulo = document.getElementById("detalle-titulo");
+  const subtitulo = document.getElementById("detalle-subtitulo");
+  if (!panel || !titulo || !subtitulo) return;
+
+  clearTimeout(temporizadorDetalle);
+  panel.hidden = false;
+  titulo.textContent = formatearNombre(punto);
+  const n = Number(punto.n);
+  subtitulo.textContent =
+    Number(punto.veces) > 0
+      ? `Alza ${formatearVeces(punto.veces)} · ${
+          Number.isFinite(n) ? formatearNumero(n) : "—"
+        } inscr. en ${punto.anio}`
+      : "Sin alza calculable para este nombre";
+
+  requestAnimationFrame(() => {
+    if (!panel.hidden) dibujarDetalleNombre(punto, grupo);
+  });
+
+  temporizadorDetalle = setTimeout(() => {
+    panel.hidden = true;
+    temporizadorDetalle = null;
+    if (typeof Plotly !== "undefined") {
+      try {
+        Plotly.purge("detalle-grafico");
+      } catch (error) {
+        // Sin gráfico que limpiar.
+      }
+    }
+  }, 5000);
 }
 
 // ---------- Gráfico de comparación ----------
@@ -899,6 +1096,10 @@ async function manejarNombreVoz(nombreCrudo) {
         n: Number(curado.n),
         extra: Number(curado.extra),
         prev: Number(curado.prev),
+        causa: String(curado.causa || "").trim(),
+        confianza: curado.confianza || "",
+        fuente: curado.fuente || "",
+        causaEstimada: false,
         serie: curado.serie,
         real: true,
         sinAlza: Number(curado.veces) < 4,
@@ -906,17 +1107,26 @@ async function manejarNombreVoz(nombreCrudo) {
       categoria = curado.categoria;
       grupo = grupoDeCategoria(categoria);
 
-      if (!grupo) {
+      if (!grupo || !punto.causa) {
         const info = await consultarCategoria(
           nombre,
           punto.anio,
           punto.veces
         );
         if (info) {
-          categoria = info.categoria;
-          grupo = info.grupo;
-          estimada = true;
-        } else {
+          if (!grupo) {
+            categoria = info.categoria;
+            grupo = info.grupo;
+            estimada = true;
+          }
+          if (info.causa) {
+            punto.causa = info.causa;
+            punto.causaEstimada = true;
+            punto.confianza = info.confianza;
+            punto.fuente = info.fuente;
+          }
+        }
+        if (!grupo) {
           categoria = "Sin categoría";
           grupo = "Sin categoría";
           estimada = false;
@@ -950,10 +1160,16 @@ async function manejarNombreVoz(nombreCrudo) {
         categoria = info.categoria;
         grupo = info.grupo;
         estimada = true;
+        punto.causa = info.causa || "";
+        punto.causaEstimada = !!info.causa;
+        punto.confianza = info.confianza;
+        punto.fuente = info.fuente;
       } else {
         categoria = "Sin categoría";
         grupo = "Sin categoría";
         estimada = false;
+        punto.causa = "";
+        punto.causaEstimada = false;
       }
     }
 
@@ -966,6 +1182,7 @@ async function manejarNombreVoz(nombreCrudo) {
     agregarAlEstado(punto, grupo, categoria, estimada);
     avisarSonidoCelular(grupo, punto);
     mostrarComparador(grupo);
+    mostrarDetalleNombre(punto, grupo);
   } catch (error) {
     mostrarMensaje(
       "No se pudo procesar",

@@ -4,9 +4,9 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>La influencia de la televisión en los nombres de los chilenos · V4</title>
-<link rel="stylesheet" href="style.css?v=20261125m" />
+<link rel="stylesheet" href="style.css?v=20261125n" />
 <script src="https://app.protobject.com/framework/p.js"></script>
-<script src="config.js?v=20261125m"></script>
+<script src="config.js?v=20261125n"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
@@ -82,9 +82,12 @@
         Puedes volver a mencionar otro nombre para mostrarlo
       </p>
     </div>
-    <p class="comparador-descripcion" id="comparador-descripcion">
-      Tu nombre comparado con las referencias alta, media y baja de su categoría.
-    </p>
+    <div class="comparador-descripcion" id="comparador-descripcion">
+      <span class="comparador-nombre" id="comparador-nombre">
+        Tu nombre comparado con las referencias alta, media y baja de su categoría.
+      </span>
+      <span class="comparador-motivo" id="comparador-motivo" hidden></span>
+    </div>
     <div id="comparador-visual">
       <section class="comparador-panel">
         <h3 class="comparador-subtitulo">Alza por nombre</h3>
@@ -96,10 +99,17 @@
     </div>
     <p class="comparador-mensaje" id="comparador-mensaje" hidden></p>
   </div>
+
+  <aside class="detalle-panel" id="detalle-panel" hidden aria-live="polite">
+    <p class="detalle-eyebrow">Detalle del nombre</p>
+    <h3 class="detalle-titulo" id="detalle-titulo">—</h3>
+    <p class="detalle-subtitulo" id="detalle-subtitulo">Inscripciones por año</p>
+    <div class="detalle-grafico" id="detalle-grafico"></div>
+  </aside>
 </main>
 
-<script defer src="api-config.js?v=20261125m"></script>
-<script defer src="main.js?v=20261125m"></script>
-<script defer src="protobject.js?v=20261125m"></script>
+<script defer src="api-config.js?v=20261125n"></script>
+<script defer src="main.js?v=20261125n"></script>
+<script defer src="protobject.js?v=20261125n"></script>
 </body>
 </html>
